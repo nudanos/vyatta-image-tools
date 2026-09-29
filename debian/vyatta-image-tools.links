@@ -1,1 +1,1 @@
-/bin/true       /usr/sbin/update-grub
+/usr/bin/true /usr/sbin/update-grub
