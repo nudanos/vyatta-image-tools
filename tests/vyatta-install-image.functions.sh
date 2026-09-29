@@ -67,7 +67,7 @@ test_validate_partition_sizes ()
     #ret=$?
     #assertFalse "Too high percentages pass failed: $ret" $ret
 
-    rm -rf ${SHUNINT_TMPDIR}/dev
+    rm -rf ${SHUNIT_TMPDIR}/dev
     unset -f lsblk
 
 }
