@@ -54,7 +54,7 @@ preinstalld_SCRIPTS = preinstall.d/50-example
 postinstallcompatdir = $(prefix)/etc/install-image
 postinstallcompat_SCRIPTS = etc/install-system/postinst
 
-systemddir = /lib/systemd
+systemddir = /usr/lib/systemd
 
 AM_CFLAGS = -I /usr/include/vyatta-cfg
 
