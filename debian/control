@@ -1,13 +1,12 @@
 Source: vyatta-image-tools
-Section: contrib/net
+Section: net
 Priority: optional
-Maintainer: Vyatta Package Maintainers <DL-vyatta-help@att.com>
-Build-Depends:
+Maintainer: NuDanOS Maintainers <jon@fernandez.tech>
+Build-Depends: debhelper-compat (= 13),
  autoconf,
  automake,
  bc,
  cpio,
- debhelper (>= 10),
  dh-yang,
  gnupg,
  libfile-slurp-perl,
@@ -17,11 +16,14 @@ Build-Depends:
  ronn | ruby-ronn,
  sharutils,
  shunit2
-Standards-Version: 3.9.8
+Standards-Version: 4.7.2
+Rules-Requires-Root: no
+Vcs-Git: https://github.com/nudanos/vyatta-image-tools.git
+Vcs-Browser: https://github.com/nudanos/vyatta-image-tools
 
 Package: vyatta-image-tools
 Architecture: all
-Depends:
+Depends: 
  bc,
  bsdmainutils,
  cpio,
@@ -67,17 +69,17 @@ Description: Vyatta image management tools
 
 Package: vyatta-image-tools-routing-instance
 Architecture: all
-Depends:
+Depends: 
  chvrf,
  libvyatta-vrfmanager-sh,
  vyatta-image-tools,
  ${misc:Depends}
-Description: Vyatta routing-instance image management tools 
+Description: Vyatta routing-instance image management tools
  Vyatta tools to manage system images with routing-instance options
 
 Package: vyatta-image-tools-initramfs-tools
 Architecture: all
-Depends:
+Depends: 
  live-boot-initramfs-tools,
  ${misc:Depends}
 Conflicts: live-boot-vyatta (<< 0.4)
@@ -88,7 +90,7 @@ Package: vyatta-image-v1-yang
 Architecture: all
 Breaks: vyatta-image-tools (<< 4.7)
 Replaces: vyatta-image-tools (<< 4.7)
-Depends:
+Depends: 
  libvyatta-cfgclient-perl,
  libvyatta-live-perl,
  vyatta-restclient-perl,
@@ -100,7 +102,7 @@ Description: vyatta-image-v1 module
 
 Package: libvyatta-live-perl
 Architecture: all
-Section: contrib/perl
+Section: perl
 Breaks: vyatta-image-tools (<< 4.7)
 Replaces: vyatta-image-tools (<< 4.7)
 Depends: ${perl:Depends}, ${misc:Depends}

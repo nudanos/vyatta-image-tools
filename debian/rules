@@ -8,7 +8,7 @@ CFLAGS = -Wall -g
 configure = --prefix=/opt/vyatta --mandir=/usr/share/man CFLAGS="$(CFLAGS)"
 
 %:
-	dh $@ --with autoreconf,systemd
+	dh $@ --with autoreconf
 
 override_dh_auto_configure:
 	dh_auto_configure -- $(configure)

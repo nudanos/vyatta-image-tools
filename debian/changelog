@@ -1,3 +1,9 @@
+vyatta-image-tools (5.50) trixie; urgency=medium
+
+  * Port to Debian 13 (trixie): debhelper-compat 13, Standards-Version 4.7.2, Rules-Requires-Root, NuDanOS Vcs.
+
+ -- NuDanOS Maintainers <jon@fernandez.tech>  Mon, 28 Sep 2026 23:09:05 -0700
+
 vyatta-image-tools (5.49) unstable; urgency=medium
 
   * Use environment variables to pass credentials from RPC to script
