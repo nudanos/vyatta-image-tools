@@ -63,8 +63,8 @@ cpiop = find  . ! -regex '\(.*~\|.*\.bak\|.*\.swp\|.*\#.*\#\)' -print0 | \
 
 install-exec-hook:
 	mkdir -p $(DESTDIR)$(opdir)
-	cd templates-op; $(cpiop) $(DESTDIR)$(opdir)
+	if [ -d templates-op ]; then cd templates-op && $(cpiop) $(DESTDIR)$(opdir); fi
 	mkdir -p $(DESTDIR)$(systemddir)
-	cd systemd ; $(cpiop) $(DESTDIR)$(systemddir)
+	cd systemd && $(cpiop) $(DESTDIR)$(systemddir)
 	mkdir -p $(DESTDIR)$(techsprtdir)
-	cd share/vyatta-op/functions/tech-support.d ; $(cpiop) $(DESTDIR)$(techsprtdir)
+	cd share/vyatta-op/functions/tech-support.d && $(cpiop) $(DESTDIR)$(techsprtdir)
