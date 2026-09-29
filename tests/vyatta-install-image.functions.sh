@@ -254,32 +254,28 @@ test_check_install_source ()
 
     TEXT=$(check_install_source ${SHUNIT_TMPDIR})
     assertFalse "Unexpected return value: $?" $?
-    assertTrue "Unexpected error message: \"${TEXT}\"" \
-	"echo ${TEXT} | grep -q 'Vyatta ISO image'"
+    assertContains "Unexpected error message: \"${TEXT}\"" "${TEXT}" 'Vyatta ISO image'
 
     _create_filesystem_squashfs ${SHUNIT_TMPDIR}/live
     echo 'ii  vyatta-version ' > "${SHUNIT_TMPDIR}"/live/packages.txt
 
     TEXT=$(check_install_source ${SHUNIT_TMPDIR})
     assertFalse "Unexpected return value: $?" $?
-    assertTrue "Unexpected error message: \"${TEXT}\"" \
-	"echo ${TEXT} | grep -q 'MD5 checksum file'"
+    assertContains "Unexpected error message: \"${TEXT}\"" "${TEXT}" 'MD5 checksum file'
 
     cat > ${SHUNIT_TMPDIR}/md5sum.txt << 'EOF'
 00000000000000000000000000000000  live/filesystem.squashfs
 EOF
     TEXT=$(check_install_source ${SHUNIT_TMPDIR})
     assertFalse "Unexpected return value: $?" $?
-    assertTrue "Unexpected error message: \"${TEXT}\"" \
-	"echo ${TEXT} | grep -q '...Failed'"
+    assertContains "Unexpected error message: \"${TEXT}\"" "${TEXT}" '...Failed'
 
     cat > ${SHUNIT_TMPDIR}/md5sum.txt << 'EOF'
 acc6e4c5b58cf3dcccb0aed157663775  live/filesystem.squashfs
 EOF
     TEXT=$(check_install_source ${SHUNIT_TMPDIR})
     assertTrue "Unexpected return value: $?" $?
-    assertTrue "Unexpected error message: \"${TEXT}\"" \
-	"echo ${TEXT} | grep -q '...OK'"
+    assertContains "Unexpected error message: \"${TEXT}\"" "${TEXT}" '...OK'
 }
 
 test_mktempdir ()

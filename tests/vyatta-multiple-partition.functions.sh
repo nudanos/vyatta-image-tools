@@ -104,7 +104,7 @@ test__adjust_sizes ()
   # 3 extra partitions
   VII_PART_LIST="vRouter 1024 / part0 100 /mnt/part0 part1 200 /mnt/part1 part2 300 /mnt/part2"
   LIST=$(_adjust_sizes 999 ${VII_PART_LIST})
-  assertEquals "vRouter 999 / part0 999 /mnt/part0 part1 999 /mnt/part1 part2 999 /mnt/part2"
+  assertEquals "vRouter 999 / part0 999 /mnt/part0 part1 999 /mnt/part1 part2 999 /mnt/part2" "$LIST"
 }
 
 #
