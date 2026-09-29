@@ -17,6 +17,5 @@ override_dh_auto_configure:
 override_dh_auto_test:
 	dh_auto_test -- VERBOSE=1
 
-override_dh_systemd_start:
-	dh_systemd_start --no-start \
-		vyatta-autoinstall.service \
+override_dh_installsystemd:
+	dh_installsystemd --no-start
