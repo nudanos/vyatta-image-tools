@@ -353,6 +353,17 @@ set_encrypted_password () {
     "/ user $1 {/,/}/s/\w*-password.*\$/encrypted-password \"$2\"/" $3
 }
 
+# Returns 0 if $1 may be the administrator password of an installed system.
+# The live ISO logs in as vyatta/vyatta; no installed system may keep it.
+_password_acceptable ()
+{
+    case "$1" in
+        "") echo "'' is not a valid password" >&2; return 1 ;;
+        vyatta) echo "'vyatta' is the published live-ISO default; choose another password" >&2; return 1 ;;
+    esac
+    return 0
+}
+
 _dialog_enter_password ()
 {
     local user=${1?$FUNCNAME requires user argument}
@@ -364,9 +375,8 @@ _dialog_enter_password ()
     until [[ "$pwd1" == "$pwd2" ]]; do
     read -p "Enter password for user '$user':" -r -s pwd1 <>/dev/tty 2>&0
     echo >/dev/tty
-    if [[ "$pwd1" == "" ]]; then
-        echo "'' is not a valid password" >/dev/tty
-        # Fixes VRVDR-33890 -- a non-matching case 
+    if ! _password_acceptable "$pwd1" 2>/dev/tty; then
+        # Fixes VRVDR-33890 -- a non-matching case
         # (with the retyped passwd being null) followed by a null passwd fails
         pwd1="1"
         pwd2="2"

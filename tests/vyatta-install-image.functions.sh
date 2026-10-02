@@ -880,6 +880,18 @@ tearDown ()
 }
 
 
+test_password_acceptable ()
+{
+    _password_acceptable "s3cret-Pass" 2>/dev/null
+    assertEquals "a real password" 0 $?
+    _password_acceptable "" 2>/dev/null
+    assertNotEquals "empty" 0 $?
+    _password_acceptable "vyatta" 2>/dev/null
+    assertNotEquals "the published live-ISO default" 0 $?
+    msg=$(_password_acceptable "vyatta" 2>&1)
+    assertContains "names the reason" "$msg" "default"
+}
+
 # load and run shUnit2
 [ -n "${ZSH_VERSION:-}" ] && SHUNIT_PARENT=$0
 . shunit2
