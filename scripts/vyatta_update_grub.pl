@@ -251,9 +251,11 @@ sub get_kernel_bootparams()
 sub generate_grub_cmd {
     my ($image) = (@_);
 
+    # A live system has no grub configuration of its own: install image
+    # writes it, and the installed system regenerates it when it commits the
+    # same configuration. Failing here failed every live boot's commit.
     if ( !is_installed_system() ) {
-        die __FILE__
-          . ": rebuild_grub can only be run on an installed system.\n";
+        return;
     }
 
     my $vgc = $configd->tree_get_full_hash("system boot-loader");
