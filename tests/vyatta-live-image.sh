@@ -12,9 +12,9 @@ proc /proc proc rw,nosuid,nodev,noexec,relatime 0 0
 udev /dev devtmpfs rw,relatime,size=10240k,nr_inodes=504618,mode=755 0 0
 devpts /dev/pts devpts rw,nosuid,noexec,relatime,gid=5,mode=620 0 0
 tmpfs /run tmpfs rw,nosuid,noexec,relatime,size=405304k,mode=755 0 0
-/dev/sr0 /lib/live/mount/medium iso9660 ro,noatime 0 0
-/dev/loop0 /lib/live/mount/rootfs/filesystem.squashfs squashfs ro,noatime 0 0
-tmpfs /lib/live/mount/overlay tmpfs rw,relatime 0 0
+/dev/sr0 /run/live/medium iso9660 ro,noatime 0 0
+/dev/loop0 /run/live/rootfs/filesystem.squashfs squashfs ro,noatime 0 0
+tmpfs /run/live/overlay tmpfs rw,relatime 0 0
 overlayfs / overlayfs rw,relatime,lowerdir=//filesystem.squashfs/,upperdir=/live/overlay/ 0 0
 overlayfs /opt/vyatta/etc/config overlayfs rw,noatime,lowerdir=//filesystem.squashfs/,upperdir=/live/overlay/ 0 0
 tmpfs /run/lock tmpfs rw,nosuid,nodev,noexec,relatime,size=5120k 0 0
@@ -34,9 +34,9 @@ proc /proc proc rw,nosuid,nodev,noexec,relatime 0 0
 udev /dev devtmpfs rw,relatime,size=10240k,nr_inodes=504623,mode=755 0 0
 devpts /dev/pts devpts rw,nosuid,noexec,relatime,gid=5,mode=620 0 0
 tmpfs /run tmpfs rw,nosuid,nodev,noexec,relatime,size=405304k,mode=755 0 0
-/dev/vda1 /lib/live/mount/persistence/vda1 ext4 rw,noatime,data=ordered 0 0
-/dev/loop0 /lib/live/mount/rootfs/999.mk.livecdrefactoring.09121125.squashfs squashfs ro,noatime 0 0
-tmpfs /lib/live/mount/overlay tmpfs rw,relatime 0 0
+/dev/vda1 /run/live/persistence/vda1 ext4 rw,noatime,data=ordered 0 0
+/dev/loop0 /run/live/rootfs/999.mk.livecdrefactoring.09121125.squashfs squashfs ro,noatime 0 0
+tmpfs /run/live/overlay tmpfs rw,relatime 0 0
 overlayfs / overlayfs rw,relatime,lowerdir=/live/rootfs/999.mk.livecdrefactoring.09121125.squashfs/,upperdir=/live/persistence/vda1/boot/999.mk.livecdrefactoring.09121125/persistence 0 0
 overlayfs /opt/vyatta/etc/config overlayfs rw,noatime,lowerdir=/live/rootfs/999.mk.livecdrefactoring.09121125.squashfs/,upperdir=/live/persistence/vda1/boot/999.mk.livecdrefactoring.09121125/persistence 0 0
 tmpfs /run/lock tmpfs rw,nosuid,nodev,noexec,relatime,size=5120k 0 0
@@ -105,7 +105,7 @@ testWhatIsMountedOn ()
 
     _create_lb3_proc_mounts
     assertEquals 2 "$(vyatta-live-image what_is_mounted_on / | wc -l)"
-    assertEquals /dev/loop0 "$(vyatta-live-image what_is_mounted_on /lib/live/mount/rootfs.*)"
+    assertEquals /dev/loop0 "$(vyatta-live-image what_is_mounted_on /run/live/rootfs.*)"
 
     _create_lb2_proc_mounts
     assertEquals 2 "$(vyatta-live-image what_is_mounted_on / | wc -l)"
@@ -116,15 +116,15 @@ testGetLiveRootfsPath ()
 {
     _create_lb3_proc_mounts
     mkdir -p "${SHUNIT_TMPDIR}"/sys/block/loop0/loop
-    echo /lib/live/mount/medium/live/filesystem.squashfs > "${SHUNIT_TMPDIR}"/sys/block/loop0/loop/backing_file
-    mkdir -p "${SHUNIT_TMPDIR}"/lib/live/mount/medium
-    assertEquals /lib/live/mount/medium "$(vyatta-live-image get_live_rootfs_path)"
+    echo /run/live/medium/live/filesystem.squashfs > "${SHUNIT_TMPDIR}"/sys/block/loop0/loop/backing_file
+    mkdir -p "${SHUNIT_TMPDIR}"/run/live/medium
+    assertEquals /run/live/medium "$(vyatta-live-image get_live_rootfs_path)"
 
     _create_lb3_image_proc_mounts
     mkdir -p "${SHUNIT_TMPDIR}"/sys/block/loop0/loop
-    echo /lib/live/mount/persistence/vda1/boot/999.mk.livecdrefactoring.09121125/999.mk.livecdrefactoring.09121125.squashfs > "${SHUNIT_TMPDIR}"/sys/block/loop0/loop/backing_file
-    mkdir -p "${SHUNIT_TMPDIR}"/lib/live/mount/persistence/vda1
-    assertEquals /lib/live/mount/persistence/vda1 "$(vyatta-live-image get_live_rootfs_path)"
+    echo /run/live/persistence/vda1/boot/999.mk.livecdrefactoring.09121125/999.mk.livecdrefactoring.09121125.squashfs > "${SHUNIT_TMPDIR}"/sys/block/loop0/loop/backing_file
+    mkdir -p "${SHUNIT_TMPDIR}"/run/live/persistence/vda1
+    assertEquals /run/live/persistence/vda1 "$(vyatta-live-image get_live_rootfs_path)"
 
     _create_lb2_proc_mounts
     mkdir -p "${SHUNIT_TMPDIR}"/sys/block/loop0/loop
@@ -165,15 +165,15 @@ testGetImageVersion ()
 {
     _create_lb3_proc_mounts
     mkdir -p "${SHUNIT_TMPDIR}"/sys/block/loop0/loop
-    echo /lib/live/mount/medium/live/filesystem.squashfs > "${SHUNIT_TMPDIR}"/sys/block/loop0/loop/backing_file
-    mkdir -p "${SHUNIT_TMPDIR}"/lib/live/mount/medium
+    echo /run/live/medium/live/filesystem.squashfs > "${SHUNIT_TMPDIR}"/sys/block/loop0/loop/backing_file
+    mkdir -p "${SHUNIT_TMPDIR}"/run/live/medium
     assertFalse "$(vyatta-live-image get_image_version ; echo $?)"
     assertNull "$(vyatta-live-image get_image_version)"
 
     _create_lb3_image_proc_mounts
     mkdir -p "${SHUNIT_TMPDIR}"/sys/block/loop0/loop
-    echo /lib/live/mount/persistence/vda1/boot/999.mk.livecdrefactoring.09121125/999.mk.livecdrefactoring.09121125.squashfs > "${SHUNIT_TMPDIR}"/sys/block/loop0/loop/backing_file
-    mkdir -p "${SHUNIT_TMPDIR}"/lib/live/mount/persistence/vda1
+    echo /run/live/persistence/vda1/boot/999.mk.livecdrefactoring.09121125/999.mk.livecdrefactoring.09121125.squashfs > "${SHUNIT_TMPDIR}"/sys/block/loop0/loop/backing_file
+    mkdir -p "${SHUNIT_TMPDIR}"/run/live/persistence/vda1
     assertTrue "$(vyatta-live-image get_image_version >/dev/null; echo $?)"
     assertEquals 999.mk.livecdrefactoring.09121125 "$(vyatta-live-image get_image_version)"
 

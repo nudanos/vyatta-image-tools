@@ -714,7 +714,7 @@ test_detect_loop_backing_device ()
     SYSFS_LOOPDEVICE_GOOD="${SHUNIT_TMPDIR}/sys/block/${DEVICE_NAME_GOOD##*/}/loop/"
     mkdir -p ${SYSFS_LOOPDEVICE_GOOD}
     BACKING_FILE_GOOD="${SYSFS_LOOPDEVICE_GOOD}/backing_file"
-    echo "/lib/live/mount/media/live/filesystem.squashfs" > ${BACKING_FILE_GOOD}
+    echo "/run/live/media/live/filesystem.squashfs" > ${BACKING_FILE_GOOD}
 
     function stat ()
     {

@@ -304,7 +304,7 @@ sub generate_grub_cmd {
         my $disk = `mount | grep '/boot/grub' | cut -d' ' -f1`;
         $disk = `basename $disk`;
         chomp($disk);
-        $grub_onie_cfg = "/lib/live/mount/persistence/$disk/$grub_onie_cfg";
+        $grub_onie_cfg = "/run/live/persistence/$disk/$grub_onie_cfg";
         build_onie_cmd( $console, $console_speed, $grub_users,
             $grub_onie_template, $grub_onie_cfg );
     }

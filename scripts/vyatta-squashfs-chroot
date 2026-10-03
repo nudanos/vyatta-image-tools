@@ -98,9 +98,9 @@ if [[ $RUNNING_IMAGE != $TARGET_IMAGE ]]; then
 	MOUNTED=1
 	#
 	# Setup Overlay
-	squashfs=/lib/live/mount/persistence/${ROOTFS_DEV##*/}/boot/${TARGET_IMAGE}/${TARGET_IMAGE}.squashfs
+	squashfs=/run/live/persistence/${ROOTFS_DEV##*/}/boot/${TARGET_IMAGE}/${TARGET_IMAGE}.squashfs
 	if [[ ! -f $squashfs ]]; then
-		base="/lib/live/mount/persistence/${ROOTFS_DEV##*/}/boot/${TARGET_IMAGE}/"
+		base="/run/live/persistence/${ROOTFS_DEV##*/}/boot/${TARGET_IMAGE}/"
 		curr=$(pwd)
 		cd $base
 		eval squashfs=*.squashfs
@@ -110,8 +110,8 @@ if [[ $RUNNING_IMAGE != $TARGET_IMAGE ]]; then
 
 	export merged=/mnt/merged
 	export lower_dir=/mnt/squash
-	upper_dir=/lib/live/mount/persistence/${ROOTFS_DEV##*/}/boot/${TARGET_IMAGE}/persistence/rw
-	work_dir=/lib/live/mount/persistence/${ROOTFS_DEV##*/}/boot/${TARGET_IMAGE}/persistence/work
+	upper_dir=/run/live/persistence/${ROOTFS_DEV##*/}/boot/${TARGET_IMAGE}/persistence/rw
+	work_dir=/run/live/persistence/${ROOTFS_DEV##*/}/boot/${TARGET_IMAGE}/persistence/work
 
 	mkdir -p $lower_dir
 	mkdir -p $merged

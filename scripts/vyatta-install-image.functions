@@ -269,7 +269,7 @@ filter_used_devices ()
   local drives=( ${@?Missing drvies input} )
 
   # Remove the booted medium
-  boot_drive=$(what_is_mounted_on '/lib/live/mount/medium' | grep -ohe '[sv]d[a-z]')
+  boot_drive=$(what_is_mounted_on '/run/live/medium' | grep -ohe '[sv]d[a-z]')
   drives=( ${drives[@]/$boot_drive} )
 
   # Also remove any drives already included in the working RAID setup
@@ -291,7 +291,7 @@ filter_used_devices ()
 
 get_free_devices () {
   local drives=( $(lsblk_exclude_floppy --nodeps --output TYPE,KNAME,MOUNTPOINT | \
-	grep -v "/lib/live/mount/medium" | awk '{print $1, $2}' | \
+	grep -v "/run/live/medium" | awk '{print $1, $2}' | \
 	sed -ne 's/^disk //p') )
   drives=( $(filter_used_devices "${drives[@]}") )
   echo ${drives[@]}
@@ -516,7 +516,7 @@ is_onie_boot ()
 is_live_cd_boot ()
 {
     local ROOTFS_DEV
-    ROOTFS_DEV=( $(what_is_mounted_on '/lib/live/mount/rootfs.*') \
+    ROOTFS_DEV=( $(what_is_mounted_on '/run/live/rootfs.*') \
 	$(what_is_mounted_on '/live/image') )
 
     if [ ${#ROOTFS_DEV[@]} -gt 1 ] ; then
@@ -1052,7 +1052,7 @@ mount_filesystems_for_post_install ()
     # some helper variables
     local unionrw_dir="${ROOT}/$(get_image_persistence_path_from_rootfs ${image_name} ${ROOT})"
     local upper_dir="${ROOT}/$(get_image_upperdir_path_from_rootfs ${image_name} ${ROOT})"
-    local mnt_dir="/lib/live/mount"
+    local mnt_dir="/run/live"
 
     local squashfs_dir="${unionrw_dir}${mnt_dir}/rootfs/${image_name}.squashfs"
     install -m755 -d ${squashfs_dir} || \
@@ -1116,7 +1116,7 @@ umount_filesystems_for_post_install ()
     local image_name=${2}
 
     local ROOTFS_DEV=$(what_is_mounted_on ${ROOT} | egrep -v 'overlay|overlayfs')
-    local mnt_dir="/lib/live/mount"
+    local mnt_dir="/run/live"
     local LIVE_ROOTFS="${ROOT}${mnt_dir}/persistence/${ROOTFS_DEV##*/}"
 
     local image_dir="${ROOT}/boot/${image_name}/"

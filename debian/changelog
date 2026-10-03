@@ -1,3 +1,11 @@
+vyatta-image-tools (5.53) trixie; urgency=medium
+
+  * Use live-boot's current mount layout, /run/live/{medium,rootfs,persistence}
+    (was /lib/live/mount): install image could not find the live squashfs
+    on a Debian 13 live system.
+
+ -- NuDanOS Maintainers <jon@fernandez.tech>  Sat, 03 Oct 2026 13:45:49 -0700
+
 vyatta-image-tools (5.52) trixie; urgency=medium
 
   * vyatta_update_grub.pl --generate-grub does nothing on a live system:

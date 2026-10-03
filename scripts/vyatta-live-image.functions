@@ -64,7 +64,7 @@ what_is_mounted_on ()
 get_live_rootfs_path ()
 {
     local ROOTFS_DEV IMAGE
-    ROOTFS_DEV=( $(what_is_mounted_on '/lib/live/mount/rootfs.*') )
+    ROOTFS_DEV=( $(what_is_mounted_on '/run/live/rootfs.*') )
     if [ ${#ROOTFS_DEV[@]} -gt 1 ] ; then
 	# PANIC!
 	echo "E: Found multiple rootfs devices: ${ROOTFS_DEV[@]}" >&2
@@ -171,7 +171,7 @@ export -f get_image_persistence_path
 get_image_version ()
 {
     local ROOTFS_DEV IMAGE ROOTFS_PATH
-    ROOTFS_DEV=( $(what_is_mounted_on '/lib/live/mount/rootfs.*') )
+    ROOTFS_DEV=( $(what_is_mounted_on '/run/live/rootfs.*') )
     if [ ${#ROOTFS_DEV[@]} -gt 1 ] ; then
 	# PANIC!
 	echo "E: Found multiple rootfs devices: ${ROOTFS_DEV[@]}" >&2
