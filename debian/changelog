@@ -1,3 +1,10 @@
+vyatta-image-tools (5.54) trixie; urgency=medium
+
+  * install image: drop the live ISO's vyatta/vyatta account when the
+    operator names a different admin, so no installed system keeps it
+
+ -- NuDanOS Maintainers <jon@fernandez.tech>  Sat, 03 Oct 2026 19:56:01 -0700
+
 vyatta-image-tools (5.53) trixie; urgency=medium
 
   * Use live-boot's current mount layout, /run/live/{medium,rootfs,persistence}

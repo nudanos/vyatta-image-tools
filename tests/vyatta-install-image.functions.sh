@@ -533,6 +533,60 @@ EOF
 	${SHUNIT_TMPDIR}/config/config.boot ; echo $?)
 }
 
+test_create_admin_account_drops_live_default ()
+{
+    mkdir -p ${SHUNIT_TMPDIR}/sbin
+    printf '#!/bin/sh\nexit 0\n' > ${SHUNIT_TMPDIR}/sbin/vyatta_create_account
+    chmod +x ${SHUNIT_TMPDIR}/sbin/vyatta_create_account
+    declare vyatta_sbindir=${SHUNIT_TMPDIR}/sbin
+    mkdir -p ${SHUNIT_TMPDIR}/config
+    local cfg=${SHUNIT_TMPDIR}/config/config.boot
+    local hash
+    hash=$(perl -e 'print crypt("vyatta", q($6$abcdefgh$))')
+
+    for auth in 'plaintext-password "vyatta"' "encrypted-password \"$hash\""; do
+        cat > $cfg <<EOF
+system {
+    login {
+        user vyatta {
+            authentication {
+                $auth
+            }
+            level admin
+        }
+    }
+    host-name vyatta
+}
+EOF
+        VII_ADMIN_USERNAME="myadmin"
+        VII_ADMIN_PASSWORD="x"
+        create_admin_account $cfg ${SHUNIT_TMPDIR} >/dev/null 2>&1
+        assertFalse "live default user vyatta removed ($auth)" \
+            "grep -q 'user vyatta' $cfg"
+        assertTrue "rest of config kept ($auth)" \
+            "grep -q 'host-name vyatta' $cfg"
+    done
+
+    # An operator-chosen admin named vyatta keeps the entry (its password
+    # is replaced, and _password_acceptable already refused "vyatta").
+    cat > $cfg <<EOF
+system {
+    login {
+        user vyatta {
+            authentication {
+                plaintext-password "vyatta"
+            }
+        }
+    }
+}
+EOF
+    VII_ADMIN_USERNAME="vyatta"
+    VII_ADMIN_PASSWORD="\$6\$new"
+    create_admin_account $cfg ${SHUNIT_TMPDIR} >/dev/null 2>&1
+    assertTrue "admin named vyatta kept" "grep -q 'user vyatta' $cfg"
+    assertFalse "default password replaced" "grep -q plaintext-password $cfg"
+}
+
 test_fetch_by_url ()
 {
     TEXT=$(fetch_by_url /${SHUNIT_TMPDIR}/config/config.boot)
