@@ -1,3 +1,11 @@
+vyatta-image-tools (5.55) trixie; urgency=medium
+
+  * install-image: give useradd the administrator's crypt hash unescaped; it
+    wrote "\/" into /etc/shadow, and logins worked only after the boot
+    commit rewrote it.
+
+ -- NuDanOS Maintainers <jon@fernandez.tech>  Fri, 09 Oct 2026 05:23:12 -0700
+
 vyatta-image-tools (5.54) trixie; urgency=medium
 
   * install image: drop the live ISO's vyatta/vyatta account when the

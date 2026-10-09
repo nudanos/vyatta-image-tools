@@ -349,8 +349,11 @@ add_console_entry () {
 # $2: encrypted password
 # $3: config file
 set_encrypted_password () {
+  # $2 is a raw crypt(3) hash; escape what sed's replacement treats specially
+  local hash
+  hash=$(printf '%s' "$2" | sed -e 's/[\/&]/\\&/g')
   sed -i -e \
-    "/ user $1 {/,/}/s/\w*-password.*\$/encrypted-password \"$2\"/" $3
+    "/ user $1 {/,/}/s/\w*-password.*\$/encrypted-password \"$hash\"/" $3
 }
 
 # Returns 0 if $1 may be the administrator password of an installed system.
@@ -403,7 +406,8 @@ _dialog_enter_password ()
     done
 
     if [[ $plaintext == "" ]]; then
-        echo $(SECRET="$pwd1" encrypt_shadow_passwd | sed 's:/:\\/:g')
+        # raw: useradd writes it to /etc/shadow as given
+        echo $(SECRET="$pwd1" encrypt_shadow_passwd)
     else
         echo "$pwd1"
     fi

@@ -946,6 +946,69 @@ test_password_acceptable ()
     assertContains "names the reason" "$msg" "default"
 }
 
+# The administrator's hash reaches two places: config.boot (through sed)
+# and /etc/shadow (through useradd). It used to be escaped for sed
+# ("\/") before either, so the installed shadow held an unusable hash
+# and logins worked only once the boot commit rewrote it.
+HASH='$6$BoaQ.ZBLW1V.LKRV$1gQ/BDz/PJwTWS/x'
+
+# test_copy_config stubs these functions and does not restore them
+_real_install_functions ()
+{
+    . "$(cd "$(dirname "$0")"; pwd -P)/../scripts/vyatta-install-image.functions"
+}
+
+_admin_config ()
+{
+    cat <<EOF
+system {
+    login {
+        user admin {
+            authentication {
+                plaintext-password ""
+            }
+            level admin
+        }
+    }
+}
+EOF
+}
+
+test_set_encrypted_password_takes_raw_hash ()
+{
+    _real_install_functions
+    local cfg=${SHUNIT_TMPDIR}/config.boot
+    _admin_config > $cfg
+    set_encrypted_password admin "$HASH" "$cfg"
+    assertContains "raw hash in config.boot" "$(cat $cfg)" "encrypted-password \"$HASH\""
+}
+
+test_admin_account_gets_raw_hash ()
+{
+    _real_install_functions
+    local cfg=${SHUNIT_TMPDIR}/config.boot
+    _admin_config > $cfg
+    mkdir -p ${SHUNIT_TMPDIR}/sbin
+    printf '#!/bin/sh\nexit 0\n' > ${SHUNIT_TMPDIR}/sbin/vyatta_create_account
+    chmod +x ${SHUNIT_TMPDIR}/sbin/vyatta_create_account
+    local saved_sbindir=$vyatta_sbindir
+    vyatta_sbindir=${SHUNIT_TMPDIR}/sbin
+    useradd () {
+        while [ $# -gt 0 ]; do
+            [ "$1" = --password ] && echo "$2" > ${SHUNIT_TMPDIR}/useradd.password
+            shift
+        done
+    }
+    becho () { :; }
+    VII_ADMIN_USERNAME=admin
+    VII_ADMIN_PASSWORD=$HASH
+    create_admin_account "$cfg" ${SHUNIT_TMPDIR}/root
+    vyatta_sbindir=$saved_sbindir
+    unset -f useradd
+    assertEquals "useradd gets the raw hash" "$HASH" "$(cat ${SHUNIT_TMPDIR}/useradd.password)"
+    assertContains "config.boot gets the raw hash" "$(cat $cfg)" "encrypted-password \"$HASH\""
+}
+
 # load and run shUnit2
 [ -n "${ZSH_VERSION:-}" ] && SHUNIT_PARENT=$0
 . shunit2
