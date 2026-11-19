@@ -13,7 +13,8 @@ grub_file='/boot/grub/grub.cfg'
 # will have their boot-console defined via the vyatta cli.
 _get_console () {
     local image_name=$2
-    local boot_cmd=$(cat $1 2> /dev/null | grep -A1 "Vyatta image $image_name (Serial" | tail -n 1)
+    local boot_cmd
+    boot_cmd=$(cat "$1" 2> /dev/null | grep -A1 "Vyatta image $image_name (Serial" | tail -n 1)
     if [[ -z $boot_cmd ]]; then
         # Can't find a valid grub entry with that image name, must be a new image.
         # No Need to continue the rest of the script.
@@ -21,18 +22,21 @@ _get_console () {
     fi
     # We take the first console we find...tries to match with speed first, then 
     # falls back to matching without speed
-    local tmp=$(echo $boot_cmd | grep -o 'console=\(tty\(USB\|S\)\?[0-9]\+,.*\)')
+    local tmp
+    tmp=$(echo "$boot_cmd" | grep -o 'console=\(tty\(USB\|S\)\?[0-9]\+,.*\)')
     if [[ -z $tmp ]]; then
-        tmp=$(echo $boot_cmd | grep -o 'console=\(tty\(USB\|S\)\?[0-9]\+\)')
+        tmp=$(echo "$boot_cmd" | grep -o 'console=\(tty\(USB\|S\)\?[0-9]\+\)')
     fi
     # Fail if still no console found
     if [[ -z $tmp ]]; then
         exit 1
     fi
-    tmp=$(echo $tmp | cut -d' ' -f1) # if there are two matches, take the first
+    tmp=$(echo "$tmp" | cut -d' ' -f1) # if there are two matches, take the first
     tmp=${tmp:8} # trim leading console=
-    local console=$(echo $tmp | cut -d',' -f1)
-    local speed=$(echo $tmp | cut -d',' -f2)
+    local console
+    console=$(echo "$tmp" | cut -d',' -f1)
+    local speed
+    speed=$(echo "$tmp" | cut -d',' -f2)
     echo "$console $speed"
 }
 
@@ -43,10 +47,10 @@ _update_grub_env () {
     # Just in case remove, known  'environment block too small.' bug
     rm /boot/grub/grubenv
     if [[ $speed ]]; then
-        grub-editenv - set serial_speed=$speed
+        grub-editenv - set serial_speed="$speed"
     fi
     if [[ $console ]]; then
-        grub-editenv - set boot_console=$console
+        grub-editenv - set boot_console="$console"
     fi
 }
 
@@ -54,11 +58,11 @@ function update_console ()
 {
     # Get the current image name
     output=$(cat /proc/cmdline)
-    output=$(echo $output | grep -o 'BOOT_IMAGE=[a-zA-Z0-9/-\.]*')
+    output=$(echo "$output" | grep -o 'BOOT_IMAGE=[a-zA-Z0-9/-\.]*')
     output=${output:11}
-    boot_image=$(echo $output | cut -d'/' -f3)
-    console_params=( $(_get_console $grub_file $boot_image) )
-    _update_grub_env ${console_params[0]} ${console_params[1]}
+    boot_image=$(echo "$output" | cut -d'/' -f3)
+    read -r -d '' -a console_params < <(_get_console $grub_file "$boot_image") || true
+    _update_grub_env "${console_params[0]}" "${console_params[1]}"
 }
 
 case "$1" in

@@ -20,7 +20,7 @@ testRun ()
     mkdir -p "${SHUNIT_TMPDIR}"/opt/vyatta/share/vyatta-op/templates/install
     touch "${SHUNIT_TMPDIR}"/opt/vyatta/share/vyatta-op/templates/install/a.txt
     assertTrue "install directory exists" \
-	$(test -d "${SHUNIT_TMPDIR}"/opt/vyatta/share/vyatta-op/templates/install; echo $?)
+	"$(test -d "${SHUNIT_TMPDIR}"/opt/vyatta/share/vyatta-op/templates/install; echo $?)"
 
     # succeed
     TEXT=$(VII_POSTINSTALL_VYATTA_MISC='true' 50-vyatta-misc run \
@@ -30,12 +30,13 @@ testRun ()
 
     # install template directory gone
     assertFalse "install directory exists" \
-	$(test -d "${SHUNIT_TMPDIR}"/opt/vyatta/share/vyatta-op/templates/install; echo $?)
+	"$(test -d "${SHUNIT_TMPDIR}"/opt/vyatta/share/vyatta-op/templates/install; echo $?)"
 }
 
 oneTimeSetUp ()
 {
-    local THIS_DIR=$(cd $(dirname ${0}); pwd -P)
+    local THIS_DIR
+    THIS_DIR="$(cd $(dirname "${0}") || exit; pwd -P)"
 
     vyatta_sbindir="${THIS_DIR}/../scripts"
     export vyatta_sbindir
@@ -46,7 +47,7 @@ oneTimeSetUp ()
 
     # the implementation knows about unittest implementation
     if [ -z "${SHUNIT_TMPDIR}" ] ; then
-	SHUNIT_TMPDIR=`mktemp -d`
+	SHUNIT_TMPDIR=$(mktemp -d)
 	trap "rm -rf ${SHUNIT_TMPDIR}" EXIT
     fi
     export SHUNIT_TMPDIR
@@ -67,4 +68,5 @@ tearDown ()
 
 # load and run shUnit2
 [ -n "${ZSH_VERSION:-}" ] && SHUNIT_PARENT=$0
+# shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
 . shunit2

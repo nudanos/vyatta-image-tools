@@ -1,14 +1,16 @@
 #!/bin/bash
+# shellcheck disable=SC2317 # reason: shunit2 calls the tests, and the mocks they define, by name
 
 # disk helper functions
+# shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
 source disk_helper.sh
 
 test_validate_partition_sizes ()
 {
     _setup_lsblk
 
-    mkdir ${SHUNIT_TMPDIR}/tmp
-    touch  ${SHUNIT_TMPDIR}/tmp/install.log
+    mkdir "${SHUNIT_TMPDIR}"/tmp
+    touch  "${SHUNIT_TMPDIR}"/tmp/install.log
     export INSTALL_LOG=/tmp/install.log
 
     # setup a 10.55GB Disk
@@ -67,7 +69,7 @@ test_validate_partition_sizes ()
     #ret=$?
     #assertFalse "Too high percentages pass failed: $ret" $ret
 
-    rm -rf ${SHUNIT_TMPDIR}/dev
+    rm -rf "${SHUNIT_TMPDIR}"/dev
     unset -f lsblk
 
 }
@@ -77,17 +79,17 @@ test_run_command ()
     TEXT=$(run_command echo 'Hello World' | awk '{ print $1 }')
     assertEquals 'Hello' "${TEXT}"
 
-    echo 'Hello World' > ${SHUNIT_TMPDIR}/test.txt
-    TEXT=$(run_command grep 'Hello World' ${SHUNIT_TMPDIR}/test.txt)
+    echo 'Hello World' > "${SHUNIT_TMPDIR}"/test.txt
+    TEXT=$(run_command grep 'Hello World' "${SHUNIT_TMPDIR}"/test.txt)
     assertEquals 'Hello World' "${TEXT}"
 
-    TEXT=$(run_command grep 'Not Found' ${SHUNIT_TMPDIR}/test.txt 2>&1)
+    TEXT=$(run_command grep 'Not Found' "${SHUNIT_TMPDIR}"/test.txt 2>&1)
     assertEquals "ERROR: grep Not Found ${SHUNIT_TMPDIR}/test.txt" "${TEXT}"
 }
 
 test_run_command_stderr ()
 {
-    cat > ${SHUNIT_TMPDIR}/test.sh <<'EOF'
+    cat > "${SHUNIT_TMPDIR}"/test.sh <<'EOF'
 #!/bin/bash
 
 set -x
@@ -100,19 +102,20 @@ func ()
 echo "VII_TEST_OUTPUT=hello"
 func
 EOF
-    chmod +x ${SHUNIT_TMPDIR}/test.sh
+    chmod +x "${SHUNIT_TMPDIR}"/test.sh
     INSTALL_LOG="${SHUNIT_TMPDIR}/test.log"
 
-    local TEXT=$(cd ${SHUNIT_TMPDIR} && run_command ./test.sh 2>&1)
+    local TEXT
+    TEXT=$(cd "${SHUNIT_TMPDIR}" && run_command ./test.sh 2>&1)
     local EXPECTED="VII_TEST_OUTPUT=hello
 VII_FUNCTION_TEST=olleh"
     assertEquals "${EXPECTED}" "${TEXT}"
-    assertTrue "logfile exists" $(test -f "${SHUNIT_TMPDIR}/test.log" ; echo $?)
+    assertTrue "logfile exists" "$(test -f "${SHUNIT_TMPDIR}/test.log" ; echo $?)"
     EXPECTED="[test_run_command_stderr]:run_command: DEBUG: ./test.sh
 [test_run_command_stderr]:run_command: + echo VII_TEST_OUTPUT=hello
 + func
 + echo VII_FUNCTION_TEST=olleh"
-    assertEquals "${EXPECTED}" "$(cat ${SHUNIT_TMPDIR}/test.log)"
+    assertEquals "${EXPECTED}" "$(cat "${SHUNIT_TMPDIR}"/test.log)"
 }
 
 test_get_response_raw()
@@ -161,27 +164,30 @@ test_install_image ()
     assertFalse "Unexpected return value" $?
     #echo ${RESULT} # already installed
 
-    mkdir -p ${SHUNIT_TMPDIR}/live
-    echo "SQUASH" > ${SHUNIT_TMPDIR}/live/filesystem.squashfs
-    mkdir -p ${SHUNIT_TMPDIR}/boot
-    echo "VMLINUX" > ${SHUNIT_TMPDIR}/boot/vmlinux
+    mkdir -p "${SHUNIT_TMPDIR}"/live
+    echo "SQUASH" > "${SHUNIT_TMPDIR}"/live/filesystem.squashfs
+    mkdir -p "${SHUNIT_TMPDIR}"/boot
+    echo "VMLINUX" > "${SHUNIT_TMPDIR}"/boot/vmlinux
+    echo "INITRD" > "${SHUNIT_TMPDIR}"/boot/initrd.img
     RESULT=$(install_image "${SHUNIT_TMPDIR}" "test1" "${SHUNIT_TMPDIR}")
     assertTrue "Unexpected return value" $?
-    assertEquals "SQUASH" "$(cat ${SHUNIT_TMPDIR}/boot/test1/test1.squashfs)"
-    assertEquals "VMLINUX" "$(cat ${SHUNIT_TMPDIR}/boot/test1/vmlinux)"
+    assertEquals "SQUASH" "$(cat "${SHUNIT_TMPDIR}"/boot/test1/test1.squashfs)"
+    assertEquals "VMLINUX" "$(cat "${SHUNIT_TMPDIR}"/boot/test1/vmlinux)"
+    assertEquals "every boot file copied" "INITRD" "$(cat "${SHUNIT_TMPDIR}"/boot/test1/initrd.img)"
 
-    RESULT=$(test -f ${SHUNIT_TMPDIR}/boot/test1/persistence/persistence.conf)
+    RESULT=$(test -f "${SHUNIT_TMPDIR}"/boot/test1/persistence/persistence.conf)
     assertTrue "No persistence.conf found" $?
 }
 
 test_get_vyatta_version ()
 {
     assertEquals "UNKNOWN" \
-		 "$(get_vyatta_version ${SHUNIT_TMPDIR} 2>/dev/null)"
+		 "$(get_vyatta_version "${SHUNIT_TMPDIR}" 2>/dev/null)"
 
     function try_mount ()
     {
-	local DESTDIR=$(echo "${1##*filesystem.squashfs}" | tr -d '[:space:]')
+	local DESTDIR
+	DESTDIR=$(echo "${1##*filesystem.squashfs}" | tr -d '[:space:]')
 	mkdir -p "${DESTDIR}/opt/vyatta/etc/"
 	cat > "${DESTDIR}/opt/vyatta/etc/version" <<EOF
 Version:      17.3.0-MASTER.01201911
@@ -204,13 +210,13 @@ Description:  Brocade vRouter 5600
 Copyright:    2015 Brocade Communications Systems, Inc.
 EOF
     assertEquals "999.master.02150325" \
-		 "$(get_vyatta_version ${SHUNIT_TMPDIR} 2>/dev/null)"
+		 "$(get_vyatta_version "${SHUNIT_TMPDIR}" 2>/dev/null)"
 
     # second test with mounting
     mkdir -p "${SHUNIT_TMPDIR}/live"
-    touch ${SHUNIT_TMPDIR}/live/filesystem.squashfs
+    touch "${SHUNIT_TMPDIR}"/live/filesystem.squashfs
     assertEquals "17.3.0-MASTER.01201911" \
-		 "$(get_vyatta_version ${SHUNIT_TMPDIR} 2>/dev/null)"
+		 "$(get_vyatta_version "${SHUNIT_TMPDIR}" 2>/dev/null)"
 }
 
 get_live_persistence_label ()
@@ -229,7 +235,7 @@ _create_filesystem_squashfs ()
 
     [ $# -ne 1 -o ! -d "${DESTDIR}" ] && return 1
 
-    cat > ${DESTDIR}/filesystem.squashfs.uuencoded << 'EOF'
+    cat > "${DESTDIR}"/filesystem.squashfs.uuencoded << 'EOF'
 begin 644 filesystem.squashfs.gz
 M'XL("%5?XU0"`W1E<W0N<W%U87-H9G,`[<VO2H-1',?AW]Y7P;'@Q&+48C&)
 M9=%+\"_*&#A4F%56M+W"BH)%!G:+-V`T#(/,X)+))%B\"N<[/%Z!]7G*YWLX
@@ -242,38 +248,38 @@ M````````````````````````````````````````````````````````````
 end
 EOF
 
-    uudecode -o ${DESTDIR}/filesystem.squashfs.gz \
-	${DESTDIR}/filesystem.squashfs.uuencoded
-    rm -f ${DESTDIR}/filesystem.squashfs.uuencoded
-    gunzip -f ${DESTDIR}/filesystem.squashfs.gz
+    uudecode -o "${DESTDIR}"/filesystem.squashfs.gz \
+	"${DESTDIR}"/filesystem.squashfs.uuencoded
+    rm -f "${DESTDIR}"/filesystem.squashfs.uuencoded
+    gunzip -f "${DESTDIR}"/filesystem.squashfs.gz
 }
 
 test_check_install_source ()
 {
     mkdir -p "${SHUNIT_TMPDIR}"/live/
 
-    TEXT=$(check_install_source ${SHUNIT_TMPDIR})
+    TEXT=$(check_install_source "${SHUNIT_TMPDIR}")
     assertFalse "Unexpected return value: $?" $?
     assertContains "Unexpected error message: \"${TEXT}\"" "${TEXT}" 'Vyatta ISO image'
 
-    _create_filesystem_squashfs ${SHUNIT_TMPDIR}/live
+    _create_filesystem_squashfs "${SHUNIT_TMPDIR}"/live
     echo 'ii  vyatta-version ' > "${SHUNIT_TMPDIR}"/live/packages.txt
 
-    TEXT=$(check_install_source ${SHUNIT_TMPDIR})
+    TEXT=$(check_install_source "${SHUNIT_TMPDIR}")
     assertFalse "Unexpected return value: $?" $?
     assertContains "Unexpected error message: \"${TEXT}\"" "${TEXT}" 'MD5 checksum file'
 
-    cat > ${SHUNIT_TMPDIR}/md5sum.txt << 'EOF'
+    cat > "${SHUNIT_TMPDIR}"/md5sum.txt << 'EOF'
 00000000000000000000000000000000  live/filesystem.squashfs
 EOF
-    TEXT=$(check_install_source ${SHUNIT_TMPDIR})
+    TEXT=$(check_install_source "${SHUNIT_TMPDIR}")
     assertFalse "Unexpected return value: $?" $?
     assertContains "Unexpected error message: \"${TEXT}\"" "${TEXT}" '...Failed'
 
-    cat > ${SHUNIT_TMPDIR}/md5sum.txt << 'EOF'
+    cat > "${SHUNIT_TMPDIR}"/md5sum.txt << 'EOF'
 acc6e4c5b58cf3dcccb0aed157663775  live/filesystem.squashfs
 EOF
-    TEXT=$(check_install_source ${SHUNIT_TMPDIR})
+    TEXT=$(check_install_source "${SHUNIT_TMPDIR}")
     assertTrue "Unexpected return value: $?" $?
     assertContains "Unexpected error message: \"${TEXT}\"" "${TEXT}" '...OK'
 }
@@ -281,19 +287,19 @@ EOF
 test_mktempdir ()
 {
     assertFalse "Directory doesn't exist" \
-	"[ -d ${SHUNIT_TMPDIR}/$(basename $0)*/medium ]"
+	"[ -d ${SHUNIT_TMPDIR}/$(basename "$0")*/medium ]"
 
     TEXT=$(mktempdir)
     assertTrue "Unexpected return value: $?" $?
     assertTrue "Return value is a directory" "[ -d \"${TEXT}\" ]"
     assertTrue "Directory exists in correct path" \
-	"[ -d ${SHUNIT_TMPDIR}/$(basename $0)* ]"
+	"[ -d ${SHUNIT_TMPDIR}/$(basename "$0")* ]"
 
     TEXT=$(mktempdir medium)
     assertTrue "Return value is non-zero" "[ -n \"${TEXT}\" ]"
     assertTrue "Return value is a directory" "[ -d \"${TEXT}\" ]"
     assertTrue "Directory exists" \
-	"[ -d ${SHUNIT_TMPDIR}/$(basename $0)*/medium ]"
+	"[ -d ${SHUNIT_TMPDIR}/$(basename "$0")*/medium ]"
 
     TEXT=$(mktempdir rootfs)
     assertTrue "Directories are siblings" "[ -d ${TEXT}/../medium ]"
@@ -302,8 +308,8 @@ test_mktempdir ()
 test__check_iso_signature ()
 {
     # Initial setup required by gpg2
-    mkdir -p ${SHUNIT_TMPDIR}/.gnupg
-    chmod 0700 ${SHUNIT_TMPDIR}/.gnupg
+    mkdir -p "${SHUNIT_TMPDIR}"/.gnupg
+    chmod 0700 "${SHUNIT_TMPDIR}"/.gnupg
     export GNUPGHOME=${SHUNIT_TMPDIR}/.gnupg
     gpg --import-ownertrust 2>/dev/null <<EOF
 # List of assigned trustvalues, created Thu 19 Feb 2015 01:50:34 PM CET
@@ -351,24 +357,24 @@ EOF
     TEXT=$(_check_iso_signature 2>&1)
     assertFalse "Unexpected return value: $?" $?
     assertTrue "Error includues 'Required parameter': ${TEXT}" \
-	$(echo ${TEXT} | grep -q 'Required parameter' ; echo $?)
+	"$(echo "${TEXT}" | grep -q 'Required parameter' ; echo $?)"
 
-    TEXT=$(_check_iso_signature ${SHUNIT_TMPDIR}/hello.txt.asc \
-	${SHUNIT_TMPDIR}/.gnupg/trustdb.gpg 2>&1)
+    TEXT=$(_check_iso_signature "${SHUNIT_TMPDIR}"/hello.txt.asc \
+	"${SHUNIT_TMPDIR}"/.gnupg/trustdb.gpg 2>&1)
     assertFalse "Unexpected return value: $?" $?
     assertTrue "fail_exit is called: ${TEXT}" \
-	$(echo ${TEXT} | grep -q 'Exiting' ; echo $?)
+	"$(echo "${TEXT}" | grep -q 'Exiting' ; echo $?)"
 
-    echo "Hello World" > ${SHUNIT_TMPDIR}/hello.txt
-    echo > ${SHUNIT_TMPDIR}/hello.txt.asc
+    echo "Hello World" > "${SHUNIT_TMPDIR}"/hello.txt
+    echo > "${SHUNIT_TMPDIR}"/hello.txt.asc
 
-    TEXT=$(_check_iso_signature ${SHUNIT_TMPDIR}/hello.txt.asc \
-	${SHUNIT_TMPDIR}/.gnupg/trustdb.gpg 2>&1)
+    TEXT=$(_check_iso_signature "${SHUNIT_TMPDIR}"/hello.txt.asc \
+	"${SHUNIT_TMPDIR}"/.gnupg/trustdb.gpg 2>&1)
     assertFalse "Unexpected return value: $?" $?
     assertTrue "fail_exit is called: ${TEXT}" \
-	$(echo ${TEXT} | grep -q 'Exiting' ; echo $?)
+	"$(echo "${TEXT}" | grep -q 'Exiting' ; echo $?)"
 
-    cat > ${SHUNIT_TMPDIR}/hello.txt.asc <<EOF
+    cat > "${SHUNIT_TMPDIR}"/hello.txt.asc <<EOF
 -----BEGIN PGP SIGNATURE-----
 Version: GnuPG v2.0.22 (GNU/Linux)
 
@@ -383,37 +389,37 @@ mD3JIUGFPtSAexvil1QYD7Urr8J2RYy3tv1a0nL5v3BcclbcEWWo3utfwqyQnXg=
 EOF
 
     # test with invalid keyring
-    TEXT=$(_check_iso_signature ${SHUNIT_TMPDIR}/hello.txt.asc 2>&1)
+    TEXT=$(_check_iso_signature "${SHUNIT_TMPDIR}"/hello.txt.asc 2>&1)
     assertFalse "Unexpected return value: $?" $?
     assertTrue "fail_exit is called: ${TEXT}" \
-	$(echo ${TEXT} | grep -q 'Exiting' ; echo $?)
+	"$(echo "${TEXT}" | grep -q 'Exiting' ; echo $?)"
 
-    TEXT=$(_check_iso_signature ${SHUNIT_TMPDIR}/hello.txt.asc \
-	${SHUNIT_TMPDIR}/.gnupg/trustdb.gpg 2>&1)
+    TEXT=$(_check_iso_signature "${SHUNIT_TMPDIR}"/hello.txt.asc \
+	"${SHUNIT_TMPDIR}"/.gnupg/trustdb.gpg 2>&1)
     assertTrue "Unexpected return value: $?" $?
     assertTrue "Error include 'Valid': ${TEXT}" \
-	$(echo ${TEXT} | grep -q 'Valid' ; echo $?)
+	"$(echo "${TEXT}" | grep -q 'Valid' ; echo $?)"
     assertFalse "fail_exit is called: ${TEXT}" \
-	$(echo ${TEXT} | grep -q 'Exiting' ; echo $?)
+	"$(echo "${TEXT}" | grep -q 'Exiting' ; echo $?)"
 
     # detect corrupt signature
-    echo "!" >> ${SHUNIT_TMPDIR}/hello.txt
-    TEXT=$(_check_iso_signature ${SHUNIT_TMPDIR}/hello.txt.asc \
-	${SHUNIT_TMPDIR}/.gnupg/trustdb.gpg 2>&1)
+    echo "!" >> "${SHUNIT_TMPDIR}"/hello.txt
+    TEXT=$(_check_iso_signature "${SHUNIT_TMPDIR}"/hello.txt.asc \
+	"${SHUNIT_TMPDIR}"/.gnupg/trustdb.gpg 2>&1)
     assertFalse "Unexpected return value: $?" $?
     assertTrue "fail_exit is called: ${TEXT}" \
-	$(echo ${TEXT} | grep -q 'Exiting' ; echo $?)
+	"$(echo "${TEXT}" | grep -q 'Exiting' ; echo $?)"
 
     # detect corrupt signature but proceed anyway
     # automatically hit 'y' return when prompted
     exec < <( yes "y" )
-    TEXT=$(_check_iso_signature ${SHUNIT_TMPDIR}/hello.txt.asc \
-	${SHUNIT_TMPDIR}/.gnupg/trustdb.gpg 2>&1)
+    TEXT=$(_check_iso_signature "${SHUNIT_TMPDIR}"/hello.txt.asc \
+	"${SHUNIT_TMPDIR}"/.gnupg/trustdb.gpg 2>&1)
     assertTrue "Unexpected return value: $?" $?
     assertTrue "Error include 'Proceeding': ${TEXT}" \
-	$(echo ${TEXT} | grep -q 'Proceeding' ; echo $?)
+	"$(echo "${TEXT}" | grep -q 'Proceeding' ; echo $?)"
     assertFalse "fail_exit is called: ${TEXT}" \
-	$(echo ${TEXT} | grep -q 'Exiting' ; echo $?)
+	"$(echo "${TEXT}" | grep -q 'Exiting' ; echo $?)"
 
     # restore stdin from fd 3
     exec 0<&3 3<&-
@@ -422,7 +428,7 @@ EOF
 test_parse_vii_config ()
 {
     local CONFIG_DIR=${SHUNIT_TMPDIR}/parse_vii_config
-    mkdir -p ${CONFIG_DIR}
+    mkdir -p "${CONFIG_DIR}"
 
     OLD_IFS=${IFS} ; IFS=$'\n'
     TEXT=(
@@ -432,7 +438,7 @@ test_parse_vii_config ()
     IFS=${OLD_IFS}
 
     assertTrue "Unexpected error string: ${TEXT[0]}" \
-	$(echo ${TEXT[0]} | grep -q 'No such file' ; echo $?)
+	"$(echo "${TEXT[0]}" | grep -q 'No such file' ; echo $?)"
     assertEquals "Unexpected return value" \
 	"RETURN=1" "${TEXT[1]}"
     assertEquals "Environment variable unset" "VII_NAME=Unknown" \
@@ -440,38 +446,38 @@ test_parse_vii_config ()
 
     OLD_IFS=${IFS} ; IFS=$'\n'
     TEXT=(
-	$(IFS=${OLD_IFS} parse_vii_config ${CONFIG_DIR}/invalid.config 2>&1 ; \
+	$(IFS=${OLD_IFS} parse_vii_config "${CONFIG_DIR}"/invalid.config 2>&1 ; \
 	    echo "RETURN=$?" ; echo "VII_NAME=${VII_NAME:-Unknown}")
     )
     IFS=${OLD_IFS}
 
     assertTrue "Unexpected error string: ${TEXT[0]}" \
-	$(echo ${TEXT[0]} | grep -q 'No such file' ; echo $?)
+	"$(echo "${TEXT[0]}" | grep -q 'No such file' ; echo $?)"
     assertEquals "Unexpected return value" \
 	"RETURN=1" "${TEXT[1]}"
     assertEquals "Environment variable unset" "VII_NAME=Unknown" \
 	"${TEXT[2]}"
 
-    cat > ${CONFIG_DIR}/invalid.config <<EOF
+    cat > "${CONFIG_DIR}"/invalid.config <<EOF
 # This is a comment
 VII_NAME=test
 cat /etc/shadow-
 EOF
     OLD_IFS=${IFS} ; IFS=$'\n'
     TEXT=(
-	$(IFS=${OLD_IFS} parse_vii_config ${CONFIG_DIR}/invalid.config 2>&1 ; \
+	$(IFS=${OLD_IFS} parse_vii_config "${CONFIG_DIR}"/invalid.config 2>&1 ; \
 	    echo "RETURN=$?" ; echo "VII_NAME=${VII_NAME:-Unknown}")
     )
     IFS=${OLD_IFS}
 
     assertTrue "Unexpected error string: ${TEXT[0]}" \
-	"$(echo ${TEXT[0]} | grep -q 'config file is unclean' ; echo $?)"
+	"$(echo "${TEXT[0]}" | grep -q 'config file is unclean' ; echo $?)"
     assertEquals "Unexpected return value" \
 	"RETURN=1" "${TEXT[1]}"
     assertEquals "Environment variable unset" "VII_NAME=Unknown" \
 	"${TEXT[2]}"
 
-    cat > ${CONFIG_DIR}/valid.config <<EOF
+    cat > "${CONFIG_DIR}"/valid.config <<EOF
 # This is a comment
 VII_IMAGE_NAME=test
 VII_ADMIN_USERNAME=vyatta
@@ -481,7 +487,7 @@ EOF
 
     OLD_IFS=${IFS} ; IFS=$'\n'
     TEXT=(
-	$(IFS=${OLD_IFS} parse_vii_config ${CONFIG_DIR}/valid.config 2>&1 ; \
+	$(IFS=${OLD_IFS} parse_vii_config "${CONFIG_DIR}"/valid.config 2>&1 ; \
 	    echo "RETURN=$?" ; echo "VII_NAME=${VII_IMAGE_NAME:-Unknown}")
     )
     IFS=${OLD_IFS}
@@ -496,19 +502,19 @@ EOF
 
 test_create_admin_account ()
 {
-    mkdir -p ${SHUNIT_TMPDIR}/etc
-    mkdir -p ${SHUNIT_TMPDIR}/sbin
-    ln -fs "$(which true)" ${SHUNIT_TMPDIR}/sbin/vyatta_check_username.pl || \
+    mkdir -p "${SHUNIT_TMPDIR}"/etc
+    mkdir -p "${SHUNIT_TMPDIR}"/sbin
+    ln -fs "$(which true)" "${SHUNIT_TMPDIR}"/sbin/vyatta_check_username.pl || \
 	fail "Unable to mock vyatta_check_username.pl"
-    cat > ${SHUNIT_TMPDIR}/sbin/vyatta_create_account <<EOF
+    cat > "${SHUNIT_TMPDIR}"/sbin/vyatta_create_account <<EOF
 #!/bin/sh
 echo ARGS=\"\$@\" >&2
 EOF
-    chmod +x ${SHUNIT_TMPDIR}/sbin/vyatta_create_account
+    chmod +x "${SHUNIT_TMPDIR}"/sbin/vyatta_create_account
     declare vyatta_sbindir=${SHUNIT_TMPDIR}/sbin
 
-    mkdir -p ${SHUNIT_TMPDIR}/config
-    cat > ${SHUNIT_TMPDIR}/config/config.boot <<EOF
+    mkdir -p "${SHUNIT_TMPDIR}"/config
+    cat > "${SHUNIT_TMPDIR}"/config/config.boot <<EOF
 system {
         login {
                 user vyatta {
@@ -522,30 +528,30 @@ EOF
 
     VII_ADMIN_USERNAME="myadmin"
     VII_ADMIN_PASSWORD="12345678"
-    TEXT=$(create_admin_account ${SHUNIT_TMPDIR}/config/config.boot \
-        ${SHUNIT_TMPDIR} 2>&1)
+    TEXT=$(create_admin_account "${SHUNIT_TMPDIR}"/config/config.boot \
+        "${SHUNIT_TMPDIR}" 2>&1)
     assertTrue "Default account is used: ${TEXT}" \
-	$(echo ${TEXT} | grep -q '[myadmin]' ; echo $?)
+	"$(echo "${TEXT}" | grep -q '[myadmin]' ; echo $?)"
     assertTrue "vyatta_create_account called with --admin=myadmin" \
-	$(echo ${TEXT} | grep -q '\--admin=myadmin' ; echo $?)
+	"$(echo "${TEXT}" | grep -q '\--admin=myadmin' ; echo $?)"
     assertTrue "config.boot doesn't update encrypted password of vyatta user" \
-	$(grep -q 'encrypted-password 12345678' \
-	${SHUNIT_TMPDIR}/config/config.boot ; echo $?)
+	"$(grep -q 'encrypted-password 12345678' \
+	"${SHUNIT_TMPDIR}"/config/config.boot ; echo $?)"
 }
 
 test_create_admin_account_drops_live_default ()
 {
-    mkdir -p ${SHUNIT_TMPDIR}/sbin
-    printf '#!/bin/sh\nexit 0\n' > ${SHUNIT_TMPDIR}/sbin/vyatta_create_account
-    chmod +x ${SHUNIT_TMPDIR}/sbin/vyatta_create_account
+    mkdir -p "${SHUNIT_TMPDIR}"/sbin
+    printf '#!/bin/sh\nexit 0\n' > "${SHUNIT_TMPDIR}"/sbin/vyatta_create_account
+    chmod +x "${SHUNIT_TMPDIR}"/sbin/vyatta_create_account
     declare vyatta_sbindir=${SHUNIT_TMPDIR}/sbin
-    mkdir -p ${SHUNIT_TMPDIR}/config
+    mkdir -p "${SHUNIT_TMPDIR}"/config
     local cfg=${SHUNIT_TMPDIR}/config/config.boot
     local hash
     hash=$(perl -e 'print crypt("vyatta", q($6$abcdefgh$))')
 
     for auth in 'plaintext-password "vyatta"' "encrypted-password \"$hash\""; do
-        cat > $cfg <<EOF
+        cat > "$cfg" <<EOF
 system {
     login {
         user vyatta {
@@ -560,7 +566,7 @@ system {
 EOF
         VII_ADMIN_USERNAME="myadmin"
         VII_ADMIN_PASSWORD="x"
-        create_admin_account $cfg ${SHUNIT_TMPDIR} >/dev/null 2>&1
+        create_admin_account "$cfg" "${SHUNIT_TMPDIR}" >/dev/null 2>&1
         assertFalse "live default user vyatta removed ($auth)" \
             "grep -q 'user vyatta' $cfg"
         assertTrue "rest of config kept ($auth)" \
@@ -569,7 +575,7 @@ EOF
 
     # An operator-chosen admin named vyatta keeps the entry (its password
     # is replaced, and _password_acceptable already refused "vyatta").
-    cat > $cfg <<EOF
+    cat > "$cfg" <<EOF
 system {
     login {
         user vyatta {
@@ -582,18 +588,38 @@ system {
 EOF
     VII_ADMIN_USERNAME="vyatta"
     VII_ADMIN_PASSWORD="\$6\$new"
-    create_admin_account $cfg ${SHUNIT_TMPDIR} >/dev/null 2>&1
+    create_admin_account "$cfg" "${SHUNIT_TMPDIR}" >/dev/null 2>&1
     assertTrue "admin named vyatta kept" "grep -q 'user vyatta' $cfg"
     assertFalse "default password replaced" "grep -q plaintext-password $cfg"
 }
 
+# fetch_by_url passes curl only real arguments: an unused, empty
+# authentication option must not reach curl as an empty word.
+test_fetch_by_url_curl_arguments ()
+{
+    # in a subshell, so the stubs do not outlive the test
+    (
+        curl ()
+        {
+            printf '%s\n' "$@" > "${SHUNIT_TMPDIR}/curl.args"
+            return 0
+        }
+        get_vyatta_version () { echo 1.0; }
+        fetch_by_url http://example.invalid/config.boot "${SHUNIT_TMPDIR}/out" >/dev/null 2>&1
+    )
+    assertTrue "curl ran" "[ -f '${SHUNIT_TMPDIR}/curl.args' ]"
+    assertFalse "no empty argument" "grep -qx '' '${SHUNIT_TMPDIR}/curl.args'"
+    assertEquals "the URL is the last argument" "http://example.invalid/config.boot" \
+        "$(tail -n 1 "${SHUNIT_TMPDIR}/curl.args")"
+}
+
 test_fetch_by_url ()
 {
-    TEXT=$(fetch_by_url /${SHUNIT_TMPDIR}/config/config.boot)
+    TEXT=$(fetch_by_url /"${SHUNIT_TMPDIR}"/config/config.boot)
     assertTrue "Returns successful" $?
     assertEquals "/${SHUNIT_TMPDIR}/config/config.boot" "${TEXT}"
 
-    TEXT=$(fetch_by_url file:/${SHUNIT_TMPDIR}/config/config.boot)
+    TEXT=$(fetch_by_url file:/"${SHUNIT_TMPDIR}"/config/config.boot)
     assertTrue "Returns successful" $?
     assertEquals "/${SHUNIT_TMPDIR}/config/config.boot" "${TEXT}"
 
@@ -610,7 +636,7 @@ test_fetch_by_url ()
     IFS=${OLD_IFS}
     assertEquals "3" "${#TEXT[@]}"
     assertTrue "${TEXT[0]}" \
-	$(echo ${TEXT[0]} | grep -q '\-o robots.txt' ; echo $?)
+	"$(echo "${TEXT[0]}" | grep -q '\-o robots.txt' ; echo $?)"
     assertEquals "robots.txt" "${TEXT[1]}"
     assertEquals "RETURN=0" "${TEXT[2]}"
 
@@ -622,7 +648,7 @@ test_fetch_by_url ()
     IFS=${OLD_IFS}
     assertEquals "3" "${#TEXT[@]}"
     assertTrue "${TEXT[0]}" \
-	$(echo ${TEXT[0]} | grep -q '\-o out.txt' ; echo $?)
+	"$(echo "${TEXT[0]}" | grep -q '\-o out.txt' ; echo $?)"
     assertEquals "out.txt" "${TEXT[1]}"
     assertEquals "RETURN=0" "${TEXT[2]}"
 
@@ -641,7 +667,7 @@ test_fetch_by_url ()
     IFS=${OLD_IFS}
     assertEquals "4" "${#TEXT[@]}"
     assertTrue "${TEXT[0]}" \
-	$(echo ${TEXT[0]} | grep -q '\-o robots.txt' ; echo $?)
+	"$(echo "${TEXT[0]}" | grep -q '\-o robots.txt' ; echo $?)"
     assertEquals "RETURN=1" "${TEXT[3]}"
 
     # an unsupported URL
@@ -653,7 +679,7 @@ test_fetch_by_url ()
     IFS=${OLD_IFS}
     assertEquals "2" "${#TEXT[@]}"
     assertTrue "${TEXT[0]}" \
-	$(echo ${TEXT[0]} | grep -q 'Unsupported URL' ; echo $?)
+	"$(echo "${TEXT[0]}" | grep -q 'Unsupported URL' ; echo $?)"
     assertEquals "RETURN=1" "${TEXT[1]}"
 }
 
@@ -703,7 +729,7 @@ test_copy_config ()
     rm -rf "${cfg_dir}"
     echo "interfaces { } system { }" > "${SHUNIT_TMPDIR}/vii.config.boot"
     export VII_IMAGE_CONFIG_BOOT="${SHUNIT_TMPDIR}/vii.config.boot"
-    RESPONSE=$(copy_config /${SHUNIT_TMPDIR} < /dev/null)
+    RESPONSE=$(copy_config /"${SHUNIT_TMPDIR}" < /dev/null)
     assertTrue "Unexpected return value" "$?"
     assertTrue "Marker exists in /config" \
 	"[ -f ${cfg_dir}/.vyatta_config ]"
@@ -713,7 +739,7 @@ test_copy_config ()
     # auto install from URL
     rm -rf "${cfg_dir}"
     export VII_IMAGE_CONFIG_BOOT="http://www.google.com/robots.txt"
-    RESPONSE=$(copy_config /${SHUNIT_TMPDIR} < /dev/null)
+    RESPONSE=$(copy_config /"${SHUNIT_TMPDIR}" < /dev/null)
     assertTrue "Unexpected return value" "$?"
     assertTrue "Marker exists in /config" \
 	"[ -f ${cfg_dir}/.vyatta_config ]"
@@ -723,7 +749,7 @@ test_copy_config ()
     # failed auto install from file
     rm -rf "${cfg_dir}"
     export VII_IMAGE_CONFIG_BOOT="/this-file-does-not-exist"
-    RESPONSE=$(copy_config /${SHUNIT_TMPDIR} < /dev/null 2>/dev/null)
+    RESPONSE=$(copy_config /"${SHUNIT_TMPDIR}" < /dev/null 2>/dev/null)
     assertFalse "Unexpected return value" "$?"
     assertTrue "Marker exists in /config" \
 	"[ -f ${cfg_dir}/.vyatta_config ]"
@@ -745,12 +771,12 @@ test_detect_loop_backing_device ()
     assertEquals "" "${RESPONSE}"
 
     # not existing backing_file sysfs entry
-    mkdir -p ${SHUNIT_TMPDIR}/sys/block/${DEVICE_NAME_BAD##*/}/loop/
+    mkdir -p "${SHUNIT_TMPDIR}"/sys/block/${DEVICE_NAME_BAD##*/}/loop/
     RESPONSE=$(detect_loop_backing_device ${DEVICE_NAME_BAD})
     assertEquals "" "${RESPONSE}"
 
     # empty backing_file sysfs entry
-    echo -n "" > ${SHUNIT_TMPDIR}/sys/block/${DEVICE_NAME_BAD##*/}/loop/backing_file
+    echo -n "" > "${SHUNIT_TMPDIR}"/sys/block/${DEVICE_NAME_BAD##*/}/loop/backing_file
     RESPONSE=$(detect_loop_backing_device ${DEVICE_NAME_BAD})
     assertEquals "" "${RESPONSE}"
 
@@ -766,9 +792,9 @@ test_detect_loop_backing_device ()
     # All good.
     DEVICE_NAME_GOOD="/dev/loop0"
     SYSFS_LOOPDEVICE_GOOD="${SHUNIT_TMPDIR}/sys/block/${DEVICE_NAME_GOOD##*/}/loop/"
-    mkdir -p ${SYSFS_LOOPDEVICE_GOOD}
+    mkdir -p "${SYSFS_LOOPDEVICE_GOOD}"
     BACKING_FILE_GOOD="${SYSFS_LOOPDEVICE_GOOD}/backing_file"
-    echo "/run/live/media/live/filesystem.squashfs" > ${BACKING_FILE_GOOD}
+    echo "/run/live/media/live/filesystem.squashfs" > "${BACKING_FILE_GOOD}"
 
     function stat ()
     {
@@ -776,7 +802,7 @@ test_detect_loop_backing_device ()
     }
 
     RESPONSE=$(detect_loop_backing_device ${DEVICE_NAME_GOOD})
-    assertEquals "fe:01" ${RESPONSE}
+    assertEquals "fe:01" "${RESPONSE}"
 }
 
 test_run_pre_install_hooks ()
@@ -785,9 +811,9 @@ test_run_pre_install_hooks ()
 
     declare vyatta_datadir=${SHUNIT_TMPDIR}/opt/vyatta/share
 
-    mkdir -p ${SHUNIT_TMPDIR}/cdroot
-    mkdir -p ${vyatta_datadir}/preinstall.d
-cat > ${vyatta_datadir}/preinstall.d/10-unittest<<EOF
+    mkdir -p "${SHUNIT_TMPDIR}"/cdroot
+    mkdir -p "${vyatta_datadir}"/preinstall.d
+cat > "${vyatta_datadir}"/preinstall.d/10-unittest<<EOF
 #!/bin/bash
 
 set -e
@@ -807,12 +833,12 @@ esac
 
 exit 0
 EOF
-    chmod 755 ${vyatta_datadir}/preinstall.d/10-unittest
+    chmod 755 "${vyatta_datadir}"/preinstall.d/10-unittest
 
     # run 10-unitest
-    RESPONSE=$(run_pre_install_hooks ${SHUNIT_TMPDIR}/cdroot)
+    RESPONSE=$(run_pre_install_hooks "${SHUNIT_TMPDIR}"/cdroot)
     assertEquals "" "${RESPONSE}"
-    assertEquals "unit test" "$(cat ${SHUNIT_TMPDIR}/cdroot/unittest)"
+    assertEquals "unit test" "$(cat "${SHUNIT_TMPDIR}"/cdroot/unittest)"
 
     # fail if missing arguments
     RESPONSE=$(run_pre_install_hooks)
@@ -855,11 +881,26 @@ EOF
 
     run_post_install_hooks "${SHUNIT_TMPDIR}" oink
 
-    assertTrue "logfile created" $(test -f "${vyatta_datadir}/postinstall.d/00-test.log" ; echo $?)
-    assertTrue "VII_00_TEST exists" $(grep -qE '^VII_00_TEST=' "${vyatta_datadir}/postinstall.d/00-test.log" ; echo $?)
-    assertTrue "VII_CONSOLE exists" $(grep -qE '^VII_CONSOLE=' "${vyatta_datadir}/postinstall.d/00-test.log" ; echo $?)
-    assertTrue "OINK_UNITTEST_EXPORT exists" $(grep -qE '^OINK_UNITTEST_EXPORT=' "${vyatta_datadir}/postinstall.d/00-test.log" ; echo $?)
-    assertFalse "OINK_UNITTEST_GLOBAL doesn't exist" $(grep -qE '^OINK_UNITTEST_GLOBAL=' "${vyatta_datadir}/postinstall.d/00-test.log" ; echo $?)
+    assertTrue "logfile created" "$(test -f "${vyatta_datadir}/postinstall.d/00-test.log" ; echo $?)"
+    assertTrue "VII_00_TEST exists" "$(grep -qE '^VII_00_TEST=' "${vyatta_datadir}/postinstall.d/00-test.log" ; echo $?)"
+    assertTrue "VII_CONSOLE exists" "$(grep -qE '^VII_CONSOLE=' "${vyatta_datadir}/postinstall.d/00-test.log" ; echo $?)"
+    assertTrue "OINK_UNITTEST_EXPORT exists" "$(grep -qE '^OINK_UNITTEST_EXPORT=' "${vyatta_datadir}/postinstall.d/00-test.log" ; echo $?)"
+    assertFalse "OINK_UNITTEST_GLOBAL doesn't exist" "$(grep -qE '^OINK_UNITTEST_GLOBAL=' "${vyatta_datadir}/postinstall.d/00-test.log" ; echo $?)"
+}
+
+test_filter_used_devices ()
+{
+    # the live medium is on sdb; sdc is in the RAID array being built,
+    # sdd in a configured array and sda is the install drive
+    what_is_mounted_on () { echo "/dev/sdb1"; }
+    local raid_array=(sdc)
+    local VII_VROUT_ARRAY_DISKS="sdd"
+    local VII_VIRT_ARRAY_DISKS=""
+    local VII_LOG_ARRAY_DISKS=""
+    local INSTALL_DRIVE=sda
+
+    assertEquals "only unused drives are offered" "sdaa sde" \
+        "$(filter_used_devices sda sdaa sdb sdc sdd sde)"
 }
 
 test_detect_console ()
@@ -902,7 +943,8 @@ test_detect_console ()
 
 oneTimeSetUp ()
 {
-    local THIS_DIR=$(cd $(dirname ${0}); pwd -P)
+    local THIS_DIR
+    THIS_DIR="$(cd $(dirname "${0}") || exit; pwd -P)"
 
     # make SUT visible
     PATH="${THIS_DIR}/../scripts/:${PATH}"
@@ -910,7 +952,7 @@ oneTimeSetUp ()
 
     # the implementation knows about unittest implementation
     if [ -z "${SHUNIT_TMPDIR}" ] ; then
-	SHUNIT_TMPDIR=`mktemp -d`
+	SHUNIT_TMPDIR=$(mktemp -d)
 	trap "rm -rf ${SHUNIT_TMPDIR}" EXIT
     fi
     export SHUNIT_TMPDIR
@@ -920,9 +962,12 @@ oneTimeSetUp ()
     TMPDIR=${SHUNIT_TMPDIR}
     export TMPDIR
 
-    . ${THIS_DIR}/../scripts/vyatta-install-image.functions
-    . ${THIS_DIR}/../scripts/vyatta-create-partition.functions
-    . ${THIS_DIR}/../vii_database/vii.defaults
+    # shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
+    . "${THIS_DIR}"/../scripts/vyatta-install-image.functions
+    # shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
+    . "${THIS_DIR}"/../scripts/vyatta-create-partition.functions
+    # shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
+    . "${THIS_DIR}"/../vii_database/vii.defaults
 }
 
 tearDown ()
@@ -955,7 +1000,8 @@ HASH='$6$BoaQ.ZBLW1V.LKRV$1gQ/BDz/PJwTWS/x'
 # test_copy_config stubs these functions and does not restore them
 _real_install_functions ()
 {
-    . "$(cd "$(dirname "$0")"; pwd -P)/../scripts/vyatta-install-image.functions"
+    # shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
+    . "$(cd "$(dirname "$0")" || exit; pwd -P)/../scripts/vyatta-install-image.functions"
 }
 
 _admin_config ()
@@ -978,37 +1024,38 @@ test_set_encrypted_password_takes_raw_hash ()
 {
     _real_install_functions
     local cfg=${SHUNIT_TMPDIR}/config.boot
-    _admin_config > $cfg
+    _admin_config > "$cfg"
     set_encrypted_password admin "$HASH" "$cfg"
-    assertContains "raw hash in config.boot" "$(cat $cfg)" "encrypted-password \"$HASH\""
+    assertContains "raw hash in config.boot" "$(cat "$cfg")" "encrypted-password \"$HASH\""
 }
 
 test_admin_account_gets_raw_hash ()
 {
     _real_install_functions
     local cfg=${SHUNIT_TMPDIR}/config.boot
-    _admin_config > $cfg
-    mkdir -p ${SHUNIT_TMPDIR}/sbin
-    printf '#!/bin/sh\nexit 0\n' > ${SHUNIT_TMPDIR}/sbin/vyatta_create_account
-    chmod +x ${SHUNIT_TMPDIR}/sbin/vyatta_create_account
+    _admin_config > "$cfg"
+    mkdir -p "${SHUNIT_TMPDIR}"/sbin
+    printf '#!/bin/sh\nexit 0\n' > "${SHUNIT_TMPDIR}"/sbin/vyatta_create_account
+    chmod +x "${SHUNIT_TMPDIR}"/sbin/vyatta_create_account
     local saved_sbindir=$vyatta_sbindir
     vyatta_sbindir=${SHUNIT_TMPDIR}/sbin
     useradd () {
         while [ $# -gt 0 ]; do
-            [ "$1" = --password ] && echo "$2" > ${SHUNIT_TMPDIR}/useradd.password
+            [ "$1" = --password ] && echo "$2" > "${SHUNIT_TMPDIR}"/useradd.password
             shift
         done
     }
     becho () { :; }
     VII_ADMIN_USERNAME=admin
     VII_ADMIN_PASSWORD=$HASH
-    create_admin_account "$cfg" ${SHUNIT_TMPDIR}/root
+    create_admin_account "$cfg" "${SHUNIT_TMPDIR}"/root
     vyatta_sbindir=$saved_sbindir
     unset -f useradd
-    assertEquals "useradd gets the raw hash" "$HASH" "$(cat ${SHUNIT_TMPDIR}/useradd.password)"
-    assertContains "config.boot gets the raw hash" "$(cat $cfg)" "encrypted-password \"$HASH\""
+    assertEquals "useradd gets the raw hash" "$HASH" "$(cat "${SHUNIT_TMPDIR}"/useradd.password)"
+    assertContains "config.boot gets the raw hash" "$(cat "$cfg")" "encrypted-password \"$HASH\""
 }
 
 # load and run shUnit2
 [ -n "${ZSH_VERSION:-}" ] && SHUNIT_PARENT=$0
+# shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
 . shunit2

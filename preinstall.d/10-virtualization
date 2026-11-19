@@ -8,11 +8,12 @@
 
 set -e
 
-: ${vyatta_prefix:=/opt/vyatta}
-: ${vyatta_exec_prefix:=$vyatta_prefix}
-: ${vyatta_sbindir:=${vyatta_exec_prefix}/sbin}
+: "${vyatta_prefix:=/opt/vyatta}"
+: "${vyatta_exec_prefix:=$vyatta_prefix}"
+: "${vyatta_sbindir:=${vyatta_exec_prefix}/sbin}"
 
-source ${vyatta_sbindir}/vyatta-install-image.functions
+# shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
+source "${vyatta_sbindir}"/vyatta-install-image.functions
 
 function virtualization_configure ()
 {
@@ -21,10 +22,10 @@ function virtualization_configure ()
 
 function virtualization_run ()
 {
-    local cd_root=${1?Missing argument}
+    local cd_root=${1:?Missing argument}
 
     if dpkg -l | grep -q '^ii  vyatta-virtualization'; then
-        if ! grep -q '^ii  vyatta-virtualization' $CD_ROOT/live/packages.txt; then
+        if ! grep -q '^ii  vyatta-virtualization' "$cd_root"/live/packages.txt; then
             fail_exit "New install image does not have vCPE support."
         fi
     fi
@@ -35,7 +36,7 @@ case "$1" in
 	virtualization_configure
 	;;
     run)
-	[ "${VII_PREINSTALL_VIRTUALIZATION}" = "true" ] && virtualization_run $2
+	[ "${VII_PREINSTALL_VIRTUALIZATION}" = "true" ] && virtualization_run "$2"
 	;;
     *)
 	fail_exit "$0: unknown command: \"$1\""

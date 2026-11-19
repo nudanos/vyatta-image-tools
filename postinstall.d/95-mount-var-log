@@ -4,9 +4,10 @@
 
 set -e
 
-: ${vyatta_prefix:=/opt/vyatta}
-: ${vyatta_sbindir:=${vyatta_prefix}/sbin}
+: "${vyatta_prefix:=/opt/vyatta}"
+: "${vyatta_sbindir:=${vyatta_prefix}/sbin}"
 
+# shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
 source "${vyatta_sbindir}/vyatta-install-image.functions"
 
 # If logging partition found, mount it
@@ -26,8 +27,9 @@ mount_var_log ()
     local name='LOGS'
     local tmp_dir="${inst_root}/var/log"
     mkdir -p "$tmp_dir" &>/dev/null
-    local output=$(run_command mount -L "$name" "$tmp_dir" &> /dev/null)
-    if [ $? != 0 ]; then
+    local output
+    # report a failed mount and go on, as the install does without it
+    if ! output=$(run_command mount -L "$name" "$tmp_dir" &> /dev/null); then
         becho "Cannot mount $name"
         lecho "mount -L $name $tmp_dir"
         lecho "$output"
@@ -38,7 +40,7 @@ case "$1" in
     configure)
 	;;
     run)
-    mount_var_log $2
+    mount_var_log "$2"
 	;;
     *)
 	fail_exit "$0: unknown command: \"$1\""

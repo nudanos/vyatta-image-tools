@@ -28,13 +28,13 @@ figure_out_partition_number ()
   fi
 
   # Check using the FS label. Supports loop devices
-  for i in $(part_num_list $drive); do
+  for i in $(part_num_list "$drive"); do
     if [[ $drive == *"loop"* ]]; then
-      if [ $( echo $labels | grep -oh "$(e2label /dev/mapper/${drive}p$i 2> /dev/null)" ) ]; then
+      if [ -n "$(echo "$labels" | grep -oh "$(e2label /dev/mapper/"${drive}"p"$i" 2> /dev/null)")" ]; then
         output+="$i\\|"
       fi
     else
-      if [ $( echo $labels | grep -oh "$(e2label /dev/${drive}$i 2> /dev/null)" ) ]; then
+      if [ -n "$(echo "$labels" | grep -oh "$(e2label /dev/"${drive}""$i" 2> /dev/null)")" ]; then
         output+="$i\\|"
       fi
     fi
@@ -42,7 +42,7 @@ figure_out_partition_number ()
 
   # remove trailing \|
   if [ -n "$output" ]; then
-    echo ${output::-2}
+    echo "${output::-2}"
   fi
 }
 
@@ -50,13 +50,15 @@ figure_out_partition_number ()
 part_num_list () {
    local dev=${1}
    if [[ "$dev" =~ mmcblk || "$dev" =~ nvme ]]; then
-     local tmp=$(lsblk /dev/$dev --output KNAME | egrep -oh 'p[0-9]+$' | sort -u | sort -n)
+     local tmp
+     tmp=$(lsblk /dev/"$dev" --output KNAME | egrep -oh 'p[0-9]+$' | sort -u | sort -n)
      tmp=${tmp//p}
    else
-     local tmp=$(lsblk /dev/$dev --output KNAME | egrep -oh '[0-9]+$' | sort -u | sort -n)
+     local tmp
+     tmp=$(lsblk /dev/"$dev" --output KNAME | egrep -oh '[0-9]+$' | sort -u | sort -n)
    fi
    for i in $tmp; do
-     local list+="$(echo $i) "
+     local list+="$(echo "$i") "
    done
    if [ -n "$list" ]; then
      echo "${list::-1}"
@@ -66,27 +68,30 @@ part_num_list () {
 total_number_of_partitions ()
 {
   local drive=$1
-  local arr=( $(part_num_list $drive) )
+  local arr=()
+  read -r -d '' -a arr < <(part_num_list "$drive") || true
   local max=${#arr[@]}
-  echo $max
+  echo "$max"
 }
 
 highest_partition_number ()
 {
   local drive=$1
   local max=0
-  for i in $(part_num_list $drive); do
-    (( $i > $max )) && max=$i
+  for i in $(part_num_list "$drive"); do
+    (( i > max )) && max=$i
   done
-  echo $max
+  echo "$max"
 }
 
 first_missing_part () {
   local drive=$1
   local increment=1
-  local sorted_arr=$( echo $(part_num_list $drive) | sort -t' ')
+  local sorted_arr
+  # shellcheck disable=SC2046 # reason: joins the partition numbers onto one line
+  sorted_arr=$( echo $(part_num_list "$drive") | sort -t' ')
   for i in $sorted_arr; do
-    if [ $i -eq $increment ]; then
+    if [ "$i" -eq $increment ]; then
       ((increment++))
       continue
     fi
@@ -108,7 +113,7 @@ float_eval()
         stat=$?
         if [[ $stat -eq 0  &&  -z "$result" ]]; then stat=1; fi
     fi
-    echo $result
+    echo "$result"
     return $stat
 }
 
@@ -121,13 +126,13 @@ _to_kiB () {
         return 1
     fi
     if [[ $value =~ ([0-9]+.[0-9]+MB|[0-9]+MB) ]]; then
-        trimmed_value=$(echo $value | rev | cut -c 3- | rev)
+        trimmed_value=$(echo "$value" | rev | cut -c 3- | rev)
         answer=$(float_eval "$trimmed_value * 1024" )
-        echo $answer
+        echo "$answer"
     elif [[ $value =~ ([0-9]+.[0-9]+kiB|[0-9]+kiB) ]]; then
         # already in kiB format, echoing trimmed result back
-        trimmed_value=$(echo $value | rev | cut -c 4- | rev)
-        echo $trimmed_value
+        trimmed_value=$(echo "$value" | rev | cut -c 4- | rev)
+        echo "$trimmed_value"
     else
         return 1
     fi
@@ -143,13 +148,13 @@ _to_MB () {
         return 1
     fi
     if [[ $value =~ ([0-9]+.[0-9]+kiB|[0-9]+kiB) ]]; then
-        trimmed_value=$(echo $value | rev | cut -c 4- | rev)
+        trimmed_value=$(echo "$value" | rev | cut -c 4- | rev)
         answer="$(float_eval "$trimmed_value / 1024")"
-        echo $answer
+        echo "$answer"
     elif [[ $value =~ ([0-9]+.[0-9]+MB|[0-9]+MB) ]]; then
         # already in MB format, echoing trimmed result back
-        trimmed_value=$(echo $value | rev | cut -c 3- | rev)
-        echo $trimmed_value
+        trimmed_value=$(echo "$value" | rev | cut -c 3- | rev)
+        echo "$trimmed_value"
     else
         return 1
     fi
@@ -164,21 +169,23 @@ remove_all_partitions_except ()
 {
   local drive=$1
   local list=$2
-  local part_nums_to_save=$(figure_out_partition_number $drive "$list")
-  local total=$(highest_partition_number $drive)
+  local part_nums_to_save
+  part_nums_to_save=$(figure_out_partition_number "$drive" "$list")
+  local total
+  total=$(highest_partition_number "$drive")
 
   # Need a value so that grep -v works properly
-  if [ -z $part_nums_to_save ]; then
+  if [ -z "$part_nums_to_save" ]; then
     part_nums_to_save=0
   fi
 
   # EX: In a sequence form 1 - 10, we remove the numbers that we want to save
-  for i in `seq 1 $total | grep -v "$part_nums_to_save"`; do
-    run_command parted --script /dev/$drive rm $i &>/dev/null
+  for i in $(seq 1 "$total" | grep -v "$part_nums_to_save"); do
+    run_command parted --script /dev/"$drive" rm "$i" &>/dev/null
   done
 
   # How many parts are left?
-  echo $(total_number_of_partitions $drive)
+  echo "$(total_number_of_partitions "$drive")"
 }
 
 find_first_fit() {
@@ -203,6 +210,6 @@ EOF
 
       return 0
     fi
-  done < <( parted $drive unit MB p free | grep 'Free Space' )
+  done < <( parted "$drive" unit MB p free | grep 'Free Space' )
   return 1
 }

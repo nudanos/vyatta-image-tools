@@ -22,6 +22,7 @@ esac
 #
 copy_autoinstall_file ()
 {
+    # shellcheck disable=SC2046 # reason: the kernel command line is split into words on purpose
     set -- $(cat /proc/cmdline)
     for _PARAMETER in "$@"
     do
@@ -30,7 +31,7 @@ copy_autoinstall_file ()
 		FILENAME=$(echo "${_PARAMETER}" | \
 			sed -ne 's/^vyatta-autoinstall=\(file:\)\?//p')
 		if [[ -r ${FILENAME} ]] ; then
-		    cp -f ${FILENAME} ${rootmnt}
+		    cp -f "${FILENAME}" "${rootmnt}"
 		fi
 		;;
         esac

@@ -7,7 +7,9 @@
 # Copyright (c) 2014-2017 by Brocade Communications Systems, Inc.
 # All rights reserved.
 
+# shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
 source "${vyatta_sbindir}/vyatta-multiple-partition.functions"
+# shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
 source "${vyatta_sbindir}/vyatta-create-partition"
 
 #
@@ -43,14 +45,15 @@ setup_multiple_partitions ()
         "partition? [$VII_VYOS_PART_SIZE]: "
     VII_VYOS_PART_SIZE=$(get_response_raw "$VII_VYOS_PART_SIZE")
 
-    extra=( $(get_free_devices) )
+    read -r -d '' -a extra < <(get_free_devices) || true
     if [[ ${#extra[@]} -ge 2 ]]; then
         echo -n "Would you like to set up a RAID for the logs partition? (Yes/No) [$VII_LOG_ARRAY]: "
         response=$(get_response "$VII_LOG_ARRAY" "Yes No Y N")
         if [[ $response == Y* ]]; then
             echo -n "RAID type? (0/1/5) [$VII_LOG_ARRAY_TYPE]: "
             VII_LOG_ARRAY_TYPE=$(get_response "$VII_LOG_ARRAY_TYPE" "0 1 5")
-            export VII_LOG_ARRAY_DISKS=$(gather_raid_devices $VII_LOG_ARRAY_TYPE)
+            export VII_LOG_ARRAY_DISKS
+            VII_LOG_ARRAY_DISKS=$(gather_raid_devices "$VII_LOG_ARRAY_TYPE")
             # Make sure we unset VII_LOG_PART_SIZE as we do not want a single LOG partition.
             VII_LOG_PART_SIZE=0
         fi
@@ -66,14 +69,15 @@ setup_multiple_partitions ()
     # assume this is a vcpe installation.
     if [[ $VII_VIRT_PART_SIZE -gt 0 ]]; then
         # If there are spare drives, ask to setup a raid.
-        extra=( $(get_free_devices) )
+        read -r -d '' -a extra < <(get_free_devices) || true
         if [[ ${#extra[@]} -ge 2 ]]; then
             echo -n "Would you like to set up a RAID for the libvirt partition? (Yes/No) [$VII_VIRT_ARRAY]: "
             response=$(get_response "$VII_VIRT_ARRAY" "Yes No Y N")
             if [[ "$response" == Y* ]]; then
                 echo -n "RAID type? (0/1/5) [$VII_VIRT_ARRAY_TYPE]: "
                 VII_VIRT_ARRAY_TYPE=$(get_response "$VII_VIRT_ARRAY_TYPE" "0 1 5")
-                export VII_VIRT_ARRAY_DISKS=$(gather_raid_devices $VII_VIRT_ARRAY_TYPE)
+                export VII_VIRT_ARRAY_DISKS
+                VII_VIRT_ARRAY_DISKS=$(gather_raid_devices "$VII_VIRT_ARRAY_TYPE")
                 # Make sure we unset VII_VIRT_PART_SIZE as we do not want a single
                 # libvirt partition. Rather, create a libvirt disk array in write_to_disk.
                 VII_VIRT_PART_SIZE=0
@@ -119,7 +123,8 @@ setup_disk_label () {
     local disk=${1:?Missing disk}
     echo -n "Creating new disk_label on [$disk]: "
     lecho "Creating new disk_label on [$disk]"
-    local output=$(parted -s /dev/$disk mklabel $VII_DISK_LABEL 2>&1)
+    local output
+    output=$(parted -s /dev/"$disk" mklabel "$VII_DISK_LABEL" 2>&1)
     if [[ -n $output ]]; then
         echo -e "Error: Could not create new disk label.\n"
         echo "Please see $INSTALL_LOG for more details"
@@ -128,7 +133,7 @@ setup_disk_label () {
         lecho "$output"
         fail_exit "Failed to create disk label"
     fi
-    parted --script /dev/$disk p >/dev/null 2>&1
+    parted --script /dev/"$disk" p >/dev/null 2>&1
     if [ "$?" != "0" ]; then
       fail_exit "Unable to read disk label."
     fi
@@ -160,7 +165,7 @@ write_to_disk () {
             return
         else
             becho "Saving previous ONIE-BOOT partition, removing all others..."
-            remove_all_partitions_except ${INSTALL_DRIVE} 'ONIE-BOOT' > /dev/null
+            remove_all_partitions_except "${INSTALL_DRIVE}" 'ONIE-BOOT' > /dev/null
             write_to_disk regular
             return
         fi
@@ -169,7 +174,7 @@ write_to_disk () {
         if [[ -z $VII_VROUT_ARRAY_DISKS ]]; then
             # NON-RAID install follows...
             if [[ -n $format ]]; then
-                setup_disk_label $INSTALL_DRIVE
+                setup_disk_label "$INSTALL_DRIVE"
             fi
  
             # Install the boot-loader
@@ -177,19 +182,19 @@ write_to_disk () {
             if [[ -d /sys/firmware/efi ]]; then
                 becho "Writing partition to disk: " \
                     "[$INSTALL_DRIVE] [ESP] [$VII_ESP_PART_SIZE]"
-                output=$(create_partition $INSTALL_DRIVE 'ESP' "$VII_ESP_PART_SIZE" 'vfat')
+                output=$(create_partition "$INSTALL_DRIVE" 'ESP' "$VII_ESP_PART_SIZE" 'vfat')
                 run_command parted -s "/dev/$INSTALL_DRIVE" set 1 boot on
             elif [[ $VII_BOOT_PART_SIZE -gt 0 ]]; then
                 becho "Writing partition to disk: " \
                     "[$INSTALL_DRIVE] [BIOS_PART] [$VII_BOOT_PART_SIZE]"
-                new_drive=$(first_missing_part $INSTALL_DRIVE)
-                create_partition $INSTALL_DRIVE 'BIOS_PART' $VII_BOOT_PART_SIZE
-                set_bios_grub_flag $INSTALL_DRIVE $new_drive
+                new_drive=$(first_missing_part "$INSTALL_DRIVE")
+                create_partition "$INSTALL_DRIVE" 'BIOS_PART' "$VII_BOOT_PART_SIZE"
+                set_bios_grub_flag "$INSTALL_DRIVE" "$new_drive"
             fi
         else
             # RAID install follows. Always format disks...
             for d in $VII_VROUT_ARRAY_DISKS; do
-                setup_disk_label $d
+                setup_disk_label "$d"
             done
 
             # Install a boot-loader partition on evey raid member
@@ -199,25 +204,26 @@ write_to_disk () {
             if [[ -d /sys/firmware/efi ]]; then
                 becho "Writing partition to disk: " \
                     "[$d] [ESP] [$VII_ESP_PART_SIZE]"
-                output=$(create_partition $d 'ESP' "$VII_ESP_PART_SIZE" 'vfat')
+                output=$(create_partition "$d" 'ESP' "$VII_ESP_PART_SIZE" 'vfat')
                 run_command parted -s "/dev/$d" set 1 boot on
             elif [[ $VII_BOOT_PART_SIZE -gt 0 ]]; then
                 becho "Writing partition to disk: " \
                     "[$d] [BIOS_PART] [$VII_BOOT_PART_SIZE]"
-                new_drive=$(first_missing_part $d)
-                create_partition $d 'BIOS_PART' $VII_BOOT_PART_SIZE
-                set_bios_grub_flag $d $new_drive
+                new_drive=$(first_missing_part "$d")
+                create_partition "$d" 'BIOS_PART' "$VII_BOOT_PART_SIZE"
+                set_bios_grub_flag "$d" "$new_drive"
             fi
             done
  
             if [ -d /tmp/onie.back ]; then
                 mkdir -p /tmp/onie.mount
                 for d in $VII_VROUT_ARRAY_DISKS; do
-                    d=$(basename $d)
+                    d=$(basename "$d")
                     becho "Generating ONIE-BOOT partition for /dev/$d"
-                    local id=$(first_missing_part $d)
-                    create_partition $d 'ONIE-BOOT' $VII_ONIEBOOT_SIZE 'ext4'
-                    if ! try_mount /dev/${d}${id} /tmp/onie.mount; then
+                    local id
+                    id=$(first_missing_part "$d")
+                    create_partition "$d" 'ONIE-BOOT' "$VII_ONIEBOOT_SIZE" 'ext4'
+                    if ! try_mount /dev/"${d}""${id}" /tmp/onie.mount; then
                         fail_exit "/dev/${d}${id}: failed to mount."
                     fi
                     run_command rsync -r /tmp/onie.back/ /tmp/onie.mount/
@@ -229,21 +235,21 @@ write_to_disk () {
             # Setup partitions to be used by vRouter
             becho "Setting up RAID partitions for vRouter..."
             for d in $VII_VROUT_ARRAY_DISKS; do
-                new_drive=$(first_missing_part $d)
-                remaining_disk_space=$(( $(get_drive_size $d) - $VII_ESP_PART_SIZE - $VII_BOOT_PART_SIZE - $VII_ONIEBOOT_SIZE - $part_table ))
+                new_drive=$(first_missing_part "$d")
+                remaining_disk_space=$(( $(get_drive_size "$d") - VII_ESP_PART_SIZE - VII_BOOT_PART_SIZE - VII_ONIEBOOT_SIZE - part_table ))
                 becho "Writing partition to disk: " \
                     "[$d] [vRouter-raid] [$remaining_disk_space]"
-                create_partition $d 'vRouter-raid' $remaining_disk_space
+                create_partition "$d" 'vRouter-raid' $remaining_disk_space
             done
 
             for d in $VII_VROUT_ARRAY_DISKS; do
-                wait_for_partprobe /dev/$d
+                wait_for_partprobe /dev/"$d"
             done
 
             # new_drive should be the index of the vRouter partition
             becho "Creating software RAID type $VII_VROUT_ARRAY_TYPE for vRouter"
-            VII_VROUT_ARRAY_DISKS="$(_convert_raid_index $new_drive "$VII_VROUT_ARRAY_DISKS")"
-            md=$(setup_raid $VII_VROUT_ARRAY_TYPE 'vRouter' $VII_VROUT_ARRAY_DISKS)
+            VII_VROUT_ARRAY_DISKS="$(_convert_raid_index "$new_drive" "$VII_VROUT_ARRAY_DISKS")"
+            md=$(setup_raid_disks "$VII_VROUT_ARRAY_TYPE" 'vRouter' "$VII_VROUT_ARRAY_DISKS")
         fi
         ;;
   esac
@@ -256,8 +262,8 @@ write_to_disk () {
       becho "Generating swap partition for: $INSTALL_DRIVE"
       becho "Writing partition to disk: " \
           "[$INSTALL_DRIVE] [linux-swap] [$VII_SWAP_PART_SIZE]"
-      new_drive=$(first_missing_part $INSTALL_DRIVE)
-      create_partition $INSTALL_DRIVE "linux-swap" $VII_SWAP_PART_SIZE
+      new_drive=$(first_missing_part "$INSTALL_DRIVE")
+      create_partition "$INSTALL_DRIVE" "linux-swap" "$VII_SWAP_PART_SIZE"
       run_command mkswap "/dev/${INSTALL_DRIVE}${new_drive}"
   fi
 
@@ -266,27 +272,27 @@ write_to_disk () {
     "[$INSTALL_DRIVE] [vRouter] [$VII_VYOS_PART_SIZE] [$ROOT_FSTYPE]"
   # Set global ROOT_PARTITION used in postinstall
   lecho "Setting global: '$ROOT_PARTITION'" 
-  ROOT_PARTITION=${INSTALL_DRIVE}$(first_missing_part $INSTALL_DRIVE)
-  create_partition $INSTALL_DRIVE 'vRouter' $VII_VYOS_PART_SIZE $ROOT_FSTYPE
+  ROOT_PARTITION=${INSTALL_DRIVE}$(first_missing_part "$INSTALL_DRIVE")
+  create_partition "$INSTALL_DRIVE" 'vRouter' "$VII_VYOS_PART_SIZE" "$ROOT_FSTYPE"
 
   if [[ $VII_LOG_ARRAY_DISKS ]]; then
     becho "Setting up Log RAID $VII_LOG_ARRAY_TYPE on $VII_LOG_ARRAY_DISKS"
-    md=$(setup_raid $VII_LOG_ARRAY_TYPE 'LOGS' $VII_LOG_ARRAY_DISKS)
-    create_partition $md 'LOGS' $(( $(size_of_raid LOGS) - 1 )) $ROOT_FSTYPE
+    md=$(setup_raid_disks "$VII_LOG_ARRAY_TYPE" 'LOGS' "$VII_LOG_ARRAY_DISKS")
+    create_partition "$md" 'LOGS' $(( $(size_of_raid LOGS) - 1 )) "$ROOT_FSTYPE"
   elif [[ $VII_LOG_PART_SIZE -gt 0 ]]; then
     becho "Writing partition to disk: " \
         "[$INSTALL_DRIVE] [LOGS] [$VII_LOG_PART_SIZE] [$ROOT_FSTYPE]"
-    create_partition $INSTALL_DRIVE 'LOGS' $VII_LOG_PART_SIZE $ROOT_FSTYPE
+    create_partition "$INSTALL_DRIVE" 'LOGS' "$VII_LOG_PART_SIZE" "$ROOT_FSTYPE"
   fi
 
   if [[ $VII_VIRT_ARRAY_DISKS ]]; then
     becho "Setting up Libvirt RAID $VII_VIRT_ARRAY_TYPE on $VII_VIRT_ARRAY_DISKS"
-    md=$(setup_raid $VII_VIRT_ARRAY_TYPE 'LIBVIRT' $VII_VIRT_ARRAY_DISKS)
-    create_partition $md 'LIBVIRT' $(( $(size_of_raid LIBVIRT) - 1 )) $ROOT_FSTYPE
+    md=$(setup_raid_disks "$VII_VIRT_ARRAY_TYPE" 'LIBVIRT' "$VII_VIRT_ARRAY_DISKS")
+    create_partition "$md" 'LIBVIRT' $(( $(size_of_raid LIBVIRT) - 1 )) "$ROOT_FSTYPE"
   elif [[ $VII_VIRT_PART_SIZE -gt 0 ]]; then
     becho "Writing partition to disk: " \
         "[$INSTALL_DRIVE] [LIBVIRT] [$VII_VIRT_PART_SIZE] [$ROOT_FSTYPE]"
-    create_partition $INSTALL_DRIVE 'LIBVIRT' $VII_VIRT_PART_SIZE $ROOT_FSTYPE
+    create_partition "$INSTALL_DRIVE" 'LIBVIRT' "$VII_VIRT_PART_SIZE" "$ROOT_FSTYPE"
   else
       required=$(cat /opt/vyatta/etc/vii.config* 2>/dev/null | grep VII_VIRT_PART_SIZE | cut -d'=' -f2)
       if [[ $requried -gt 0 ]]; then

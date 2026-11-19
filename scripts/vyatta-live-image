@@ -9,10 +9,10 @@
 
 function usage ()
 {
-    echo "usage: $(basename ${0}) [function]"
+    echo "usage: $(basename "${0}") [function]"
     echo ""
     echo "Where function can be one of:"
-    source $(cd $(dirname ${0}) && pwd -P)/$(basename ${0}).functions
+    source "$(cd $(dirname "${0}") && pwd -P)"/"$(basename "${0}")".functions
     compgen -A function | grep -v usage
 }
 
@@ -37,16 +37,16 @@ if [ $# -lt 1 ] ; then
     exit 1
 fi
 
-source $(cd $(dirname ${0}) && pwd -P)/$(basename ${0}).functions
+source "$(cd $(dirname "${0}") && pwd -P)"/"$(basename "${0}")".functions
 
 CMD=${1}
 shift
 
 # if this command does not exist lets print usage and exit
-if [ -z "$(typeset -F ${CMD})" ] ; then
+if [ -z "$(typeset -F "${CMD}")" ] ; then
     usage
     exit 1
 fi
 
 ${OPT_X}
-eval ${CMD} ${*}
+eval "${CMD}" "${*}"

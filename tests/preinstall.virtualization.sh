@@ -13,9 +13,30 @@ testRun ()
     #assertEquals "" "${TEXT}"
 }
 
+testVirtualizationInNewImage ()
+{
+    # the running image has vCPE support
+    mkdir -p "${SHUNIT_TMPDIR}/bin" "${SHUNIT_TMPDIR}/cd/live"
+    printf '#!/bin/sh\necho "ii  vyatta-virtualization 1.0"\n' > "${SHUNIT_TMPDIR}/bin/dpkg"
+    chmod +x "${SHUNIT_TMPDIR}/bin/dpkg"
+
+    # the new image has it too
+    echo "ii  vyatta-virtualization 1.1" > "${SHUNIT_TMPDIR}/cd/live/packages.txt"
+    PATH="${SHUNIT_TMPDIR}/bin:${PATH}" VII_PREINSTALL_VIRTUALIZATION='true' \
+        10-virtualization run "${SHUNIT_TMPDIR}/cd" >/dev/null 2>&1
+    assertTrue "new image with vCPE support accepted" $?
+
+    # the new image lacks it
+    echo "ii  vyatta-base 1.0" > "${SHUNIT_TMPDIR}/cd/live/packages.txt"
+    PATH="${SHUNIT_TMPDIR}/bin:${PATH}" VII_PREINSTALL_VIRTUALIZATION='true' \
+        10-virtualization run "${SHUNIT_TMPDIR}/cd" >/dev/null 2>&1
+    assertFalse "new image without vCPE support refused" $?
+}
+
 oneTimeSetUp ()
 {
-    local THIS_DIR=$(cd $(dirname ${0}); pwd -P)
+    local THIS_DIR
+    THIS_DIR="$(cd $(dirname "${0}") || exit; pwd -P)"
 
     vyatta_sbindir="${THIS_DIR}/../scripts"
     export vyatta_sbindir
@@ -26,7 +47,7 @@ oneTimeSetUp ()
 
     # the implementation knows about unittest implementation
     if [ -z "${SHUNIT_TMPDIR}" ] ; then
-	SHUNIT_TMPDIR=`mktemp -d`
+	SHUNIT_TMPDIR=$(mktemp -d)
 	trap "rm -rf ${SHUNIT_TMPDIR}" EXIT
     fi
     export SHUNIT_TMPDIR
@@ -47,4 +68,5 @@ tearDown ()
 
 # load and run shUnit2
 [ -n "${ZSH_VERSION:-}" ] && SHUNIT_PARENT=$0
+# shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
 . shunit2

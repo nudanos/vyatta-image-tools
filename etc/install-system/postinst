@@ -11,24 +11,26 @@
 image_tools_version=$(dpkg -l vyatta-image-tools \
                       | awk '$2=="vyatta-image-tools"{print $3}')
 
-if dpkg --compare-versions $image_tools_version gt 1.4 ; then
+if dpkg --compare-versions "$image_tools_version" gt 1.4 ; then
 	# we're upgrading from a version that can already inherit mount points
 	exit 0
 fi
 
-if dpkg --compare-versions $image_tools_version lt 0.39 ; then
+if dpkg --compare-versions "$image_tools_version" lt 0.39 ; then
 	# predates enable_systemd_mount
 	exit 0
 fi
 
 
-: ${vyatta_prefix:=/opt/vyatta}
-: ${vyatta_exec_prefix:=$vyatta_prefix}
-: ${vyatta_sbindir:=${vyatta_exec_prefix}/sbin}
+: "${vyatta_prefix:=/opt/vyatta}"
+: "${vyatta_exec_prefix:=$vyatta_prefix}"
+: "${vyatta_sbindir:=${vyatta_exec_prefix}/sbin}"
 
 # read our dependencies
-source ${vyatta_sbindir}/vyatta-install-image.functions
-source ${vyatta_sbindir}/vyatta-multiple-partition.functions
+# shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
+source "${vyatta_sbindir}"/vyatta-install-image.functions
+# shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
+source "${vyatta_sbindir}"/vyatta-multiple-partition.functions
 
 if is_live_cd_boot; then
 	# only a problem with "add system image"
@@ -38,7 +40,7 @@ fi
 ROOT=$1
 
 for i in $(ls /etc/systemd/system/local-fs.target.wants/*mount); do
-    becho "Copying systemd mount file onto new image: $(basename $i)"
+    becho "Copying systemd mount file onto new image: $(basename "$i")"
     enable_systemd_mount "$i" "$ROOT"
 done
 

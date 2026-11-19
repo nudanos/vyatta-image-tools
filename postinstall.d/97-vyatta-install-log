@@ -5,16 +5,17 @@
 
 set -e
 
-: ${vyatta_prefix:=/opt/vyatta}
-: ${vyatta_exec_prefix:=$vyatta_prefix}
-: ${vyatta_sbindir:=${vyatta_exec_prefix}/sbin}
+: "${vyatta_prefix:=/opt/vyatta}"
+: "${vyatta_exec_prefix:=$vyatta_prefix}"
+: "${vyatta_sbindir:=${vyatta_exec_prefix}/sbin}"
 
+# shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
 source "${vyatta_sbindir}/vyatta-install-image.functions"
 
 function install_log_run ()
 {
-    local root_dir=${1?Missing argument}
-    local image_name=${2?Missing argument}
+    local root_dir=${1:?Missing argument}
+    local image_name=${2:?Missing argument}
  
     lecho "Copying installation logfile to ${image_name}"
     run_command mkdir -p "${root_dir}/var/log/vyatta"
@@ -27,7 +28,7 @@ case "$1" in
 	# no configuration for this postinstall script
 	;;
     run)
-	install_log_run $2 $3
+	install_log_run "$2" "$3"
 	;;
     *)
 	fail_exit "$0: unknown command: \"$1\""

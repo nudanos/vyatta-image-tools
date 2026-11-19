@@ -5,20 +5,21 @@
 
 set -e
 
-: ${vyatta_prefix:=/opt/vyatta}
-: ${vyatta_exec_prefix:=$vyatta_prefix}
-: ${vyatta_sbindir:=${vyatta_exec_prefix}/sbin}
+: "${vyatta_prefix:=/opt/vyatta}"
+: "${vyatta_exec_prefix:=$vyatta_prefix}"
+: "${vyatta_sbindir:=${vyatta_exec_prefix}/sbin}"
 
-source ${vyatta_sbindir}/vyatta-install-image.functions
+# shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
+source "${vyatta_sbindir}"/vyatta-install-image.functions
 
 # Make sure the new image is aware of any RAID configurations
 create_raid_config ()
 {
-    local root_dir=${1?Missing Argument}
+    local root_dir=${1:?Missing Argument}
     if [[ $(ls /dev/md/md*) ]]; then
-        run_command mdadm --detail --scan >> ${root_dir}/etc/mdadm/mdadm.conf
-        run_command sed -i 's/<system>/<none>/g' ${root_dir}/etc/mdadm/mdadm.conf
-        run_command chroot ${root_dir} update-initramfs -u -t -b /boot
+        run_command mdadm --detail --scan >> "${root_dir}"/etc/mdadm/mdadm.conf
+        run_command sed -i 's/<system>/<none>/g' "${root_dir}"/etc/mdadm/mdadm.conf
+        run_command chroot "${root_dir}" update-initramfs -u -t -b /boot
     fi
 }
 
@@ -26,7 +27,7 @@ case "$1" in
     configure)
 	;;
     run)
-    create_raid_config $2
+    create_raid_config "$2"
 	;;
     *)
 	fail_exit "$0: unknown command: \"$1\""

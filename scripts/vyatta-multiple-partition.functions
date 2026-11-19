@@ -19,13 +19,13 @@
 _to_name () {
   local part_arr=( "$@" )
   local index=0
-  for i in `seq 0 ${#part_arr[@]}`; do
-    if [ $(expr $i % 3) == 0 ]; then
+  for i in $(seq 0 ${#part_arr[@]}); do
+    if [ "$(expr "$i" % 3)" == 0 ]; then
       continue
     fi
-    unset part_arr[$i]
+    unset part_arr["$i"]
   done
-  echo ${part_arr[@]}
+  echo "${part_arr[@]}"
 }
 
 #
@@ -36,13 +36,13 @@ _to_size () {
   part_arr=( "${part_arr[@]:1}" )
   local index=0
 
-  for i in `seq 0 ${#part_arr[@]}`; do
-    if [ $(expr $i % 3) == 0 ]; then
+  for i in $(seq 0 ${#part_arr[@]}); do
+    if [ "$(expr "$i" % 3)" == 0 ]; then
       continue
     fi
-    unset part_arr[$i]
+    unset part_arr["$i"]
   done
-  echo ${part_arr[@]}
+  echo "${part_arr[@]}"
 }
 
 #
@@ -53,13 +53,13 @@ _to_mount () {
   part_arr=( "${part_arr[@]:2}" )
   local index=0
 
-  for i in `seq 0 ${#part_arr[@]}`; do
-    if [ $(expr $i % 3) == 0 ]; then
+  for i in $(seq 0 ${#part_arr[@]}); do
+    if [ "$(expr "$i" % 3)" == 0 ]; then
       continue
     fi
-    unset part_arr[$i]
+    unset part_arr["$i"]
   done
-  echo ${part_arr[@]}
+  echo "${part_arr[@]}"
 }
 
 #
@@ -67,7 +67,7 @@ _to_mount () {
 #
 _num_of () {
   part_arr=( "$@" )
-  echo $(expr ${#part_arr[@]} / 3)
+  echo "$(expr ${#part_arr[@]} / 3)"
 }
 
 
@@ -77,17 +77,18 @@ _num_of () {
 #
 _rm_part () {
   local opt_arr=( "$@" )
-  local size=$(expr ${#opt_arr[@]} - 1)
+  local size
+  size=$(expr ${#opt_arr[@]} - 1)
 
   # Already empty
-  if [ $size -lt 2 ]; then
+  if [ "$size" -lt 2 ]; then
     return
   fi
 
-  for i in `seq $size -1 $(expr $size - 2)`; do
-    unset opt_arr[$i]
+  for i in $(seq "$size" -1 $(( size - 2 ))); do
+    unset opt_arr["$i"]
   done
-  echo ${opt_arr[@]}
+  echo "${opt_arr[@]}"
 }
 
 #
@@ -95,7 +96,7 @@ _rm_part () {
 #
 _add_part () {
   local opt_arr=( "$@" )
-  echo ${opt_arr[@]}
+  echo "${opt_arr[@]}"
 }
 
 #
@@ -108,9 +109,9 @@ print_partition_estimates () {
   # Space
   echo -e "\n"
 
-  for i in `seq 0 3 ${#part_arr[@]}`; do
-    part_num=$(expr $part_num + 1)
-    echo "Partition $part_num: ${part_arr[$i]} ${part_arr[$(expr $i + 1)]}MB on ${part_arr[$(expr $i + 2)]}"
+  for i in $(seq 0 3 ${#part_arr[@]}); do
+    part_num=$(expr "$part_num" + 1)
+    echo "Partition $part_num: ${part_arr[$i]} ${part_arr[$(expr "$i" + 1)]}MB on ${part_arr[$(expr "$i" + 2)]}"
   done
 
   # Space
@@ -125,16 +126,16 @@ _adjust_sizes () {
   local part_size=${opt_arr[0]}
   local part_arr=( "${opt_arr[@]:1}" )
 
-  for i in `seq 1 3 ${#part_arr[@]}`; do
-    part_arr[$i]=$part_size
+  for i in $(seq 1 3 ${#part_arr[@]}); do
+    part_arr[i]=$part_size
   done
-  echo ${part_arr[@]}
+  echo "${part_arr[@]}"
 }
 
 
 _to_mount_fn () {
   local mntp=$1
-  echo "$(echo $mntp | tr / -a | cut -c 2-).mount"
+  echo "$(echo "$mntp" | tr / -a | cut -c 2-).mount"
 }
 
 #
@@ -146,7 +147,7 @@ enable_systemd_mount () {
   local dest="$root/etc/systemd/system/local-fs.target.wants/"
   local path=''
 
-  mkdir -p $dest
+  mkdir -p "$dest"
   cp --remove-destination "$file" "$dest"
 }
 
@@ -165,7 +166,7 @@ gather_raid_devices () {
         select_drive "Add drive to RAID array?" 'RAID_DRIVE'
         raid_array=( ${raid_array[@]} "$RAID_DRIVE" )
         echo -n "Current array includes drives: "
-        echo ${raid_array[@]}
+        echo "${raid_array[@]}"
 
         case $raid_type in
             [01])
@@ -192,7 +193,7 @@ gather_raid_devices () {
     done
 
     exec 1<&3
-    echo ${raid_array[@]}
+    echo "${raid_array[@]}"
 }
 
 size_of_raid () {
@@ -200,18 +201,18 @@ size_of_raid () {
     local size=0
     while read START END SIZE EXTRA; do
         local tmp=${SIZE//MB}
-        tmp=$(echo $tmp | cut -d'.' -f1) # trim decimal
-        size=$(( $size + $tmp ))
-    done < <(parted /dev/md/md-$raid unit MB p free | grep 'Free Space'| sed 's/ +/ /g')
+        tmp=$(echo "$tmp" | cut -d'.' -f1) # trim decimal
+        size=$(( size + tmp ))
+    done < <(parted /dev/md/md-"$raid" unit MB p free | grep 'Free Space'| sed 's/ +/ /g')
     echo $size
 }
 
 size_of_array () {
     local devices=( "${@:?Missing raid members}" )
     local size=0
-    for drive in ${devices[@]}; do
-        drive=$(basename $drive)
-        size=$(( $size + $(get_drive_size $drive) ))
+    for drive in "${devices[@]}"; do
+        drive=$(basename "$drive")
+        size=$(( size + $(get_drive_size "$drive") ))
     done
     echo $size
 }

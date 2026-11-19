@@ -5,11 +5,12 @@
 
 set -e
 
-: ${vyatta_prefix:=/opt/vyatta}
-: ${vyatta_exec_prefix:=$vyatta_prefix}
-: ${vyatta_sbindir:=${vyatta_exec_prefix}/sbin}
+: "${vyatta_prefix:=/opt/vyatta}"
+: "${vyatta_exec_prefix:=$vyatta_prefix}"
+: "${vyatta_sbindir:=${vyatta_exec_prefix}/sbin}"
 
-source ${vyatta_sbindir}/vyatta-install-image.functions
+# shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
+source "${vyatta_sbindir}"/vyatta-install-image.functions
 
 function example_configure ()
 {
@@ -26,8 +27,8 @@ function example_configure ()
 
 function example_run ()
 {
-    local root_dir=${1?Missing argument}
-    local image_name=${2?Missing argument}
+    local root_dir=${1:?Missing argument}
+    local image_name=${2:?Missing argument}
     local foo=${VII_POSTINSTALL_VYATTA_EXAMPLE_FOO?Missing foo environment}
 
     becho "The new foo is ${foo}"
@@ -38,7 +39,7 @@ case "$1" in
 	example_configure
 	;;
     run)
-	[ "${VII_POSTINSTALL_VYATTA_EXAMPLE}" = "true" ] && example_run $2 $3
+	[ "${VII_POSTINSTALL_VYATTA_EXAMPLE}" = "true" ] && example_run "$2" "$3"
 	;;
     *)
 	fail_exit "$0: unknown command: \"$1\""

@@ -20,7 +20,8 @@
 # the INSTALL_LOG env var should be exported by the "caller".
 # it will be used to log messages.
 
-source ${vyatta_sbindir}/install-get-partition.functions
+# shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
+source "${vyatta_sbindir}"/install-get-partition.functions
 
 # the base install drive e.g. sda
 INSTALL_DRIVE=''
@@ -36,7 +37,7 @@ ROOT_FSTYPE='ext4'
 ROOT_SIZE=0
 
 write_and_exit () {
-    echo "$ROOT_PARTITION_TYPE $ROOT_PARTITION $INSTALL_DRIVE $GRUB_PARTITIONS" >$OUTFILE
+    echo "$ROOT_PARTITION_TYPE $ROOT_PARTITION $INSTALL_DRIVE $GRUB_PARTITIONS" >"$OUTFILE"
     becho 'Done!'
     return 0
 }
@@ -76,9 +77,9 @@ validate_disklabel () {
 read_disklabel () {
     local ldrive=/dev/$1
     local dlabel
-    dlabel=$(parted -s $ldrive p | grep "Partition Table:" | awk '{print $3}')
+    dlabel=$(parted -s "$ldrive" p | grep "Partition Table:" | awk '{print $3}')
     lecho "Partition Table: $dlabel"
-    echo $dlabel
+    echo "$dlabel"
 }
 
 # There may or may not actually be a disk label on the disk at this point
@@ -97,7 +98,7 @@ select_disklabel () {
         echo -n "Disk label type (msdos/gpt) [$VII_DISK_LABEL]: "
         local resp=''
         resp=$(get_response "$VII_DISK_LABEL" "MSDOS GPT M G")
-        validate_disklabel "$(toupper $resp)"
+        validate_disklabel "$(toupper "$resp")"
         local ret=$?
         if [[ $ret -eq 0 ]]; then
             break
@@ -113,7 +114,7 @@ select_disklabel () {
 check_disklabel () {
     local ldrive=$1
 
-    parted --script /dev/$ldrive p >/dev/null 2>&1
+    parted --script /dev/"$ldrive" p >/dev/null 2>&1
 
     # If unable to read disk, it's likely it needs a disklabel
     if [ "$?" != "0" ]; then
@@ -144,7 +145,7 @@ select_partition () {
   # remove any partitions we have already previously used
   if [ -n "$exclude" ]; then
     for part in $parts; do
-      temp=$(echo $part | egrep -v $exclude)
+      temp=$(echo "$part" | egrep -v "$exclude")
       parts_temp="$parts_temp $temp"
     done
     parts=$parts_temp
@@ -155,11 +156,11 @@ select_partition () {
   display=''
   myparts=''
   for part in $parts; do
-    rootdev=$(echo $part | sed 's/[0-9]//g')
-    parttype=$(fdisk -l /dev/$rootdev | grep $part | grep Linux)
+    rootdev=$(echo "$part" | sed 's/[0-9]//g')
+    parttype=$(fdisk -l /dev/"$rootdev" | grep "$part" | grep Linux)
     if [ -n "$parttype" ]; then
-      lsize=$(get_drive_size $part)
-      if [ "$lsize" -a $lsize -ge $minsize ]; then
+      lsize=$(get_drive_size "$part")
+      if [ "$lsize" -a "$lsize" -ge "$minsize" ]; then
         display="$display $part\t\t$lsize"MB"\n"
         myparts="$myparts $part"
       fi
@@ -172,7 +173,7 @@ select_partition () {
     lpartition=''
     while [ -z "$lpartition" ]; do
       # take the first partition as the default
-      lpartition=$(echo $myparts | /usr/bin/awk '{ print $1 }')
+      lpartition=$(echo "$myparts" | /usr/bin/awk '{ print $1 }')
 
       echo "I found the following partitions suitable for the Vyatta image:"
       echo -e "Partition\tSize"
@@ -201,7 +202,7 @@ delete_partitions () {
   # in the first grep below we add the optional [p] in order to
   # accomdate cciss drives
   wait_for_partprobe "/dev/$ldrive"
-  partitions=$(cat /proc/partitions | grep $ldrive[p]*[0-9] \
+  partitions=$(cat /proc/partitions | grep "$ldrive"[p]*[0-9] \
                | awk '{ print $4 }' | sed 's/\(.*\)\([0-9]$\)/\2/g' \
                | grep -v "^$")
   mkdir -p /mnt/tmp
@@ -211,7 +212,7 @@ delete_partitions () {
     dev_name=/dev/$ldrive$lpart
 	wait_for_partprobe "$dev_name"
 	lecho "Removing partition $lpart on /dev/$ldrive"
-	output=$(parted -s /dev/$ldrive rm $lpart 2>&1)
+	output=$(parted -s /dev/"$ldrive" rm "$lpart" 2>&1)
 	status=$?
 	if [ "$status" != 0 ]; then
 	    echo -e "Warning: cannot delete partition $lpart on $ldrive.\n"
@@ -227,14 +228,14 @@ set_bootable_partition () {
   local ldrive=$1
   local lpart=${2//[a-z]/}
   becho "Marking /dev/$ldrive partition $lpart as bootable"
-  output=$(parted -s /dev/$ldrive set $lpart boot on 2>&1)
+  output=$(parted -s /dev/"$ldrive" set "$lpart" boot on 2>&1)
   becho "$output"
 }
 
 
 # get drive name from a partition name
 drive_name_from_partition () {
-  echo $1 | sed 's/[0-9]//g'
+  echo "$1" | sed 's/[0-9]//g'
 }
 
 
@@ -295,11 +296,11 @@ or would you rather partition it manually with parted?
 
 EOF
   while [ -z "$PART_METHOD" ]; do
-    check_disklabel $ldrive
+    check_disklabel "$ldrive"
     if [ "$?" != "0" ]; then
         # don't show skip option if drive partition table can't be read
         echo -n "Partition (Auto/Parted) [${VII_PART_METHOD}]: "
-        part_method=$(get_response ""${VII_PART_METHOD} "Auto Parted A M P")
+        part_method=$(get_response """${VII_PART_METHOD}" "Auto Parted A M P")
     else
         echo "If partitions are already set up, you may skip this step."
         echo -n "Partition (Auto/Parted/Skip) [${VII_PART_METHOD}]: "
@@ -335,14 +336,14 @@ select_install_drive() {
       INSTALL_DRIVE="md/md-vRouter"
       return
   fi
-  extra=( $(get_free_devices) )
+  read -r -d '' -a extra < <(get_free_devices) || true
   if [[ ${#extra[@]} -ge 2 ]]; then
       echo -n "Would you like to setup a RAID for the vRouter partition? (Yes/No) [$VII_VROUT_ARRAY]: "
       response=$(get_response "$VII_VIRT_ARRAY" "Yes No Y N")
       if [[ "$response" == Y* ]]; then
           echo -n "RAID type? (0/1/5) [$VII_VROUT_ARRAY_TYPE]: "
           VII_VROUT_ARRAY_TYPE=$(get_response "$VII_VROUT_ARRAY_TYPE" "0 1 5")
-          VII_VROUT_ARRAY_DISKS=$(gather_raid_devices $VII_VROUT_ARRAY_TYPE)
+          VII_VROUT_ARRAY_DISKS=$(gather_raid_devices "$VII_VROUT_ARRAY_TYPE")
           VII_VYOS_PART_SIZE=0
           INSTALL_DRIVE="md/md-vRouter"
           return
@@ -385,7 +386,7 @@ setup_method_manual() {
     unmount "$INSTALL_DRIVE"
 
     # Run parted and let the user configure
-    parted /dev/$INSTALL_DRIVE
+    parted /dev/"$INSTALL_DRIVE"
   fi
 
   # Ask for the root partition and make sure it's valid
@@ -394,7 +395,7 @@ setup_method_manual() {
     # Note that PARTITION is defined in select partition
     ROOT_PARTITION=$PARTITION
     unmount "$ROOT_PARTITION"
-    vd=$(grep $ROOT_PARTITION /proc/partitions | awk '{ print $4 }')
+    vd=$(grep "$ROOT_PARTITION" /proc/partitions | awk '{ print $4 }')
 
     if [ -z "$vd" ]; then
       echo
@@ -412,7 +413,7 @@ setup_method_manual() {
   # partition is on.
   # TODO: Allow different drives to function as the boot device
   if [ -z "$INSTALL_DRIVE" ]; then
-    INSTALL_DRIVE=$(echo $ROOT_PARTITION | sed 's/[0-9]//g')
+    INSTALL_DRIVE=$(echo "$ROOT_PARTITION" | sed 's/[0-9]//g')
   fi
 }
 
@@ -434,16 +435,17 @@ unmount () {
       fi
     done
 
-    for parts in "$mounted"; do
+    # one mount point per line, deepest first
+    while IFS= read -r parts; do
       lecho "umount $parts"
-      output=$(umount $parts)
+      output=$(umount "$parts")
       status=$?
       if [ "$status" != 0 ]; then
         echo -e "Exiting: error unmounting $parts.\nPlease see $INSTALL_LOG for more details."
         lecho "Exiting: error unmounting $parts.\numount $parts\n$output"
         exit 1
       fi
-    done
+    done <<< "$mounted"
   fi
 }
 
@@ -468,7 +470,7 @@ install_get_partition () {
 
       select_disklabel
 
-      select_part_method $INSTALL_DRIVE
+      select_part_method "$INSTALL_DRIVE"
 
       echo -n "Validating defaults..."
       if ! validate_partition_sizes; then
@@ -483,7 +485,7 @@ install_get_partition () {
         echo " [OK]"
       fi
 
-      select_partition_setup $INSTALL_DRIVE
+      select_partition_setup "$INSTALL_DRIVE"
 
       break
     done

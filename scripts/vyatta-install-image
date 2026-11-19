@@ -9,12 +9,13 @@
 
 usage ()
 {
-    echo "usage: [VY_ADD_IMG_USER=username VY_ADD_IMG_PASS=password] $(basename $0) [ --root DEV ] [ --config FILE ] [ URL ]"
+    echo "usage: [VY_ADD_IMG_USER=username VY_ADD_IMG_PASS=password] $(basename "$0") [ --root DEV ] [ --config FILE ] [ URL ]"
 }
 
 _clean_up ()
 {
-    local TEMP_DIR=$(mktempdir)
+    local TEMP_DIR
+    TEMP_DIR=$(mktempdir)
     try_umount "${TEMP_DIR}"
     lecho "$(rm -frv "${TEMP_DIR}")"
 
@@ -24,41 +25,46 @@ _clean_up ()
 }
 
 if [ -z "$vit_chrooted" ]; then
+    # shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
     source /etc/os-release
     echo -e "\nWelcome to the ${PRETTY_NAME} image installer."
 fi
 
-: ${vyatta_prefix:=/opt/vyatta}
-: ${vyatta_exec_prefix:=$vyatta_prefix}
-: ${vyatta_bindir:=${vyatta_exec_prefix}/bin}
-: ${vyatta_sbindir:=${vyatta_exec_prefix}/sbin}
-: ${vyatta_sysconfdir:=${vyatta_prefix}/etc}
+: "${vyatta_prefix:=/opt/vyatta}"
+: "${vyatta_exec_prefix:=$vyatta_prefix}"
+: "${vyatta_bindir:=${vyatta_exec_prefix}/bin}"
+: "${vyatta_sbindir:=${vyatta_exec_prefix}/sbin}"
+: "${vyatta_sysconfdir:=${vyatta_prefix}/etc}"
 export PATH="$PATH:${vyatta_sbindir}:${vyatta_bindir}"
 
 # read our dependencies
-source ${vyatta_sbindir}/vyatta-live-image.functions
-source ${vyatta_sbindir}/vyatta-install-image.functions
-source ${vyatta_sbindir}/vyatta-multiple-partition
-source ${vyatta_sbindir}/install-get-partition
+# shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
+source "${vyatta_sbindir}"/vyatta-live-image.functions
+# shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
+source "${vyatta_sbindir}"/vyatta-install-image.functions
+# shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
+source "${vyatta_sbindir}"/vyatta-multiple-partition
+# shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
+source "${vyatta_sbindir}"/install-get-partition
 
 # read our version dependent defaults
 if [ -f "${vyatta_sysconfdir}/install-image/vii.config" ]; then
     parse_vii_config "${vyatta_sysconfdir}/install-image/vii.config"
 fi
 
-OPTS=$(getopt --name $(basename $0) \
+OPTS=$(getopt --name "$(basename "$0")" \
     --options "c:r:yd" --longoptions "config:,root:,yes,defer-boot" -- "$@") || exit $?
 
-eval set -- ${OPTS}
+eval set -- "${OPTS}"
 
 while [ $# -gt 0 ] ; do
     case $1 in
         -c|--config)
-            OPT_CONFIG=$(eval echo $2)
+            OPT_CONFIG=$(eval echo "$2")
             shift
             ;;
         -r|--root)
-            OPT_ROOT=$(eval echo $2)
+            OPT_ROOT=$(eval echo "$2")
             shift
             ;;
         -y|--yes)
@@ -91,11 +97,11 @@ fi
 
 # set default values for important variables
 : ${OPT_CONFIG:=""} # optional vyatta.config
-: ${OPT_ROOT:="$(get_live_rootfs_path)"}
+: "${OPT_ROOT:="$(get_live_rootfs_path)"}"
 : ${OPT_YES:=""} # the vyatta autoinstaller
 : ${OPT_URL:=${1}} # url to the image to be added
-: ${OPT_URL_USERNAME:=${VY_ADD_IMG_USER}}
-: ${OPT_URL_PASSWORD:=${VY_ADD_IMG_PASS}}
+: "${OPT_URL_USERNAME:=${VY_ADD_IMG_USER}}"
+: "${OPT_URL_PASSWORD:=${VY_ADD_IMG_PASS}}"
 : ${OPT_VYATTA_CONFIG:=""} # Using a non-default vyatta config.boot
 : ${OPT_DEFER_BOOT:="0"} # If set, don't use the new image as the default boot
 export OPT_DEFER_BOOT
@@ -207,19 +213,20 @@ if [[ -n "${OPT_URL}" && -z "${vit_chrooted}" ]] ; then
     unset vyatta_exec_prefix
     # Unset directory defaults
     for evar in $(env | grep 'dir=' | cut -d'=' -f1); do
-        unset $evar
+        unset "$evar"
     done
     export vit_chrooted=true
     args=( $@ )
     becho "Executing installer from downloaded image..."
-    (/./${CD_SQUASH_ROOT}/opt/vyatta/sbin/vyatta-install-image ${args[@]})
+    (/./${CD_SQUASH_ROOT}/opt/vyatta/sbin/vyatta-install-image "${args[@]}")
     # Recursive exit...
     exit
 fi
 
 # source our vii defaults, do this after checking/recursing install source
 # so that we get the proper image name.
-source ${vyatta_sysconfdir}/install-image/vii.defaults
+# shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
+source "${vyatta_sysconfdir}"/install-image/vii.defaults
 
 echo -n "What would you like to name this image? [${VII_IMAGE_NAME}]: "
 VII_IMAGE_NAME=$(get_response_raw "${VII_IMAGE_NAME}")

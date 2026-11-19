@@ -5,12 +5,14 @@
 
 set -e
 
-: ${vyatta_prefix:=/opt/vyatta}
-: ${vyatta_exec_prefix:=$vyatta_prefix}
-: ${vyatta_sbindir:=${vyatta_exec_prefix}/sbin}
+: "${vyatta_prefix:=/opt/vyatta}"
+: "${vyatta_exec_prefix:=$vyatta_prefix}"
+: "${vyatta_sbindir:=${vyatta_exec_prefix}/sbin}"
 
-source ${vyatta_sbindir}/vyatta-grub.functions
-source ${vyatta_sbindir}/vyatta-install-image.functions
+# shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
+source "${vyatta_sbindir}"/vyatta-grub.functions
+# shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
+source "${vyatta_sbindir}"/vyatta-install-image.functions
 export PATH=/usr/sbin:$PATH
 
 # TODO extract common code in vyatta-dataplane.init.d to library
@@ -19,7 +21,8 @@ function num_1G_hugepages()
     local pages=0
 
     # Determine available memory in units of kB
-    local mem=$(awk '/^MemTotal:/ { print $2 }' /proc/meminfo)
+    local mem
+    mem=$(awk '/^MemTotal:/ { print $2 }' /proc/meminfo)
     local mb=$(( mem / 1024 ))
 
     mb=$(((mb + 511) / 1024 * 1024))	# round to nearest GB
@@ -43,15 +46,16 @@ function hugepages_configure ()
 
 function hugepages_run ()
 {
-    local root_dir=${1?Missing argument}
-    local image_name=${2?Missing argument}
+    local root_dir=${1:?Missing argument}
+    local image_name=${2:?Missing argument}
 
     # check for IOMMU and pdpe1gb CPU flag
-    if [ $(ls /sys/kernel/iommu_groups | wc -l) -ne 0 -a \
-	 $(grep -c pdpe1gb /proc/cpuinfo) -ne 0 ]; then
-	local pages=$(num_1G_hugepages)
+    if [ "$(ls /sys/kernel/iommu_groups | wc -l)" -ne 0 -a \
+	 "$(grep -c pdpe1gb /proc/cpuinfo)" -ne 0 ]; then
+	local pages
+	pages=$(num_1G_hugepages)
 
-	if [ $pages -gt 0 ]; then
+	if [ "$pages" -gt 0 ]; then
 	    local hugepage_options="hugepagesz=1GB hugepages=${pages}"
 
 	    replace_grub_options "${root_dir}"/boot/grub/grub.cfg "${image_name}"  \
@@ -65,8 +69,8 @@ case "$1" in
 	hugepages_configure
 	;;
     run)
-	hugepages_run $2 $3
-	[ "${VII_POSTINSTALL_HUGEPAGES}" = 'true' ] && hugepages_run $2 $3
+	hugepages_run "$2" "$3"
+	[ "${VII_POSTINSTALL_HUGEPAGES}" = 'true' ] && hugepages_run "$2" "$3"
 	;;
     *)
 	fail_exit "$0: unknown command: \"$1\""

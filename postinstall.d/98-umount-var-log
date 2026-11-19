@@ -4,9 +4,10 @@
 
 set -e
 
-: ${vyatta_prefix:=/opt/vyatta}
-: ${vyatta_sbindir:=${vyatta_prefix}/sbin}
+: "${vyatta_prefix:=/opt/vyatta}"
+: "${vyatta_sbindir:=${vyatta_prefix}/sbin}"
 
+# shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
 source "${vyatta_sbindir}/vyatta-install-image.functions"
 
 # If logging partition found, umount it
@@ -23,11 +24,13 @@ mount_var_log ()
         lecho "No logging partition found. Skipping."
         return 0
     fi
+    local name='LOGS'
     local tmp_dir="${inst_root}/var/log"
-    local output=$(run_command umount "$tmp_dir" &> /dev/null)
-    if [ $? != 0 ]; then
+    local output
+    # report a failed umount and go on, as 95-mount-var-log does
+    if ! output=$(run_command umount "$tmp_dir" &> /dev/null); then
         becho "Cannot umount $name"
-        lecho "umount -L $name $tmp_dir"
+        lecho "umount $tmp_dir"
         lecho "$output"
     fi
 }
@@ -36,7 +39,7 @@ case "$1" in
     configure)
 	;;
     run)
-    mount_var_log $2
+    mount_var_log "$2"
 	;;
     *)
 	fail_exit "$0: unknown command: \"$1\""

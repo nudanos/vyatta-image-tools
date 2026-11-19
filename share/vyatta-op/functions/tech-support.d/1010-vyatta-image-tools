@@ -13,6 +13,7 @@
 # **** End License ****
 
 
+# shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
 source "$(cd "$(dirname "${0}")" && pwd -P)"/../tech-support.functions
 
 header SYSTEM Image

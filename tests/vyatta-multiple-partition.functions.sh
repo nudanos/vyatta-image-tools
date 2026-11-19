@@ -1,4 +1,5 @@
 #!/bin/bash
+# shellcheck disable=SC2317 # reason: shunit2 calls the tests, and the mocks they define, by name
 
 #
 # Helper functions for unit tests
@@ -8,7 +9,7 @@ _setup_fdisk ()
 {
   local arr=( $@ )
 
-  cat > ${SHUNIT_TMPDIR}/fdisk <<EOF
+  cat > "${SHUNIT_TMPDIR}"/fdisk <<EOF
 Disk /dev/sda: 232.9 GiB, 250059350016 bytes, 488397168 sectors
 Units: sectors of 1 * 512 = 512 bytes
 Sector size (logical/physical): 512 bytes / 4096 bytes
@@ -18,20 +19,20 @@ Disk identifier: 0x75f2358b
 
 Device     Boot  Start       End   Sectors   Size Id Type
 EOF
-  for i in `seq 1 ${arr[0]}`; do
-    echo >> ${SHUNIT_TMPDIR}/fdisk "/dev/sda$i  *      2048    499711    497664   243M 83 ${arr[$i]}"
+  for i in $(seq 1 "${arr[0]}"); do
+    echo >> "${SHUNIT_TMPDIR}"/fdisk "/dev/sda$i  *      2048    499711    497664   243M 83 ${arr[$i]}"
   done
-  echo >> ${SHUNIT_TMPDIR}/fdisk ""
+  echo >> "${SHUNIT_TMPDIR}"/fdisk ""
 
   function fdisk () {
-    cat ${SHUNIT_TMPDIR}/fdisk
+    cat "${SHUNIT_TMPDIR}"/fdisk
   }
 }
 
 _setup_fdisk_random ()
 { local arr=( $@ )
 
-  cat > ${SHUNIT_TMPDIR}/fdisk <<EOF
+  cat > "${SHUNIT_TMPDIR}"/fdisk <<EOF
 Disk /dev/sda: 232.9 GiB, 250059350016 bytes, 488397168 sectors
 Units: sectors of 1 * 512 = 512 bytes
 Sector size (logical/physical): 512 bytes / 4096 bytes
@@ -41,25 +42,28 @@ Disk identifier: 0x75f2358b
 
 Device     Boot  Start       End   Sectors   Size Id Type
 EOF
-  for i,j in `seq 1 ${arr[0]}` {1 2 3 5}; do
-    echo >> ${SHUNIT_TMPDIR}/fdisk "/dev/sda$j  *      2048    499711    497664   243M 83 ${arr[$i]}"
+  # partition i (1..arr[0]) gets number nums[i-1]
+  local nums=(1 2 3 5)
+  for (( i = 1; i <= arr[0]; i++ )); do
+    j=${nums[i-1]}
+    echo >> "${SHUNIT_TMPDIR}"/fdisk "/dev/sda$j  *      2048    499711    497664   243M 83 ${arr[$i]}"
   done
-  echo >> ${SHUNIT_TMPDIR}/fdisk ""
+  echo >> "${SHUNIT_TMPDIR}"/fdisk ""
 
   function fdisk () {
-    cat ${SHUNIT_TMPDIR}/fdisk
+    cat "${SHUNIT_TMPDIR}"/fdisk
   }
 }
 _setup_e2label ()
 {
   local arr=( $@ )
-  mkdir -p ${SHUNIT_TMPDIR}/dev
-  for i in `seq 0 $(expr ${#arr[@]} - 1)`; do
-    echo ${arr[$i]} > ${SHUNIT_TMPDIR}/dev/sda$(expr $i + 1)
+  mkdir -p "${SHUNIT_TMPDIR}"/dev
+  for i in $(seq 0 $(( ${#arr[@]} - 1 ))); do
+    echo "${arr[$i]}" > "${SHUNIT_TMPDIR}"/dev/sda"$(expr "$i" + 1)"
   done
 
   function e2label () {
-    cat ${SHUNIT_TMPDIR}$1
+    cat "${SHUNIT_TMPDIR}""$1"
   }
 }
 
@@ -98,12 +102,14 @@ test__adjust_sizes ()
 {
   # 1 extra partition
   VII_PART_LIST="vRouter 1024 / LIBVIRT 2048 /var/lib/libvirt/images"
-  LIST=$(_adjust_sizes 500 ${VII_PART_LIST})
+  read -r -a parts <<< "$VII_PART_LIST"
+  LIST=$(_adjust_sizes 500 "${parts[@]}")
   assertEquals "vRouter 500 / LIBVIRT 500 /var/lib/libvirt/images" "$LIST"
 
   # 3 extra partitions
   VII_PART_LIST="vRouter 1024 / part0 100 /mnt/part0 part1 200 /mnt/part1 part2 300 /mnt/part2"
-  LIST=$(_adjust_sizes 999 ${VII_PART_LIST})
+  read -r -a parts <<< "$VII_PART_LIST"
+  LIST=$(_adjust_sizes 999 "${parts[@]}")
   assertEquals "vRouter 999 / part0 999 /mnt/part0 part1 999 /mnt/part1 part2 999 /mnt/part2" "$LIST"
 }
 
@@ -113,7 +119,7 @@ test__adjust_sizes ()
 
 oneTimeSetUp ()
 {
-    local THIS_DIR=$(cd $(dirname ${0}); pwd -P)
+    local THIS_DIR="$(cd $(dirname "${0}") || exit; pwd -P)"
 
     # make SUT visible
     PATH="${THIS_DIR}/../scripts/:${PATH}"
@@ -121,7 +127,7 @@ oneTimeSetUp ()
 
     # the implementation knows about unittest implementation
     if [ -z "${SHUNIT_TMPDIR}" ] ; then
-	SHUNIT_TMPDIR=`mktemp -d`
+	SHUNIT_TMPDIR=$(mktemp -d)
 	trap "rm -rf ${SHUNIT_TMPDIR}" EXIT
     fi
     export SHUNIT_TMPDIR
@@ -131,7 +137,7 @@ oneTimeSetUp ()
     TMPDIR=${SHUNIT_TMPDIR}
     export TMPDIR
 
-    . ${THIS_DIR}/../scripts/vyatta-multiple-partition.functions
+    . "${THIS_DIR}"/../scripts/vyatta-multiple-partition.functions
 }
 
 tearDown ()

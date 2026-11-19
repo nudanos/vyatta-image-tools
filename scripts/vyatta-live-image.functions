@@ -12,7 +12,7 @@
 #
 # NOTE: 
 # The unittest exports $SHUNIT_TMPDIR and creates some mock files that we read
-: ${SHUNIT_TMPDIR:=""}
+: "${SHUNIT_TMPDIR:=""}"
 
 #
 # With different live-boot versions we use different persistence labels
@@ -26,7 +26,7 @@ get_live_persistence_label ()
     if [ -r /usr/share/initramfs-tools/scripts/live ] ; then
 	# on live-initramfs we used root_persistence variable
 	local root_persistence
-	eval $(grep -E '^root_persistence=' /usr/share/initramfs-tools/scripts/live)
+	eval "$(grep -E '^root_persistence=' /usr/share/initramfs-tools/scripts/live)"
 	if [ -n "${root_persistence-}" ] ; then
 	    custom_overlay_label="${root_persistence}"
 	fi
@@ -64,7 +64,7 @@ what_is_mounted_on ()
 get_live_rootfs_path ()
 {
     local ROOTFS_DEV IMAGE
-    ROOTFS_DEV=( $(what_is_mounted_on '/run/live/rootfs.*') )
+    read -r -d '' -a ROOTFS_DEV < <(what_is_mounted_on '/run/live/rootfs.*') || true
     if [ ${#ROOTFS_DEV[@]} -gt 1 ] ; then
 	# PANIC!
 	echo "E: Found multiple rootfs devices: ${ROOTFS_DEV[@]}" >&2
@@ -72,12 +72,12 @@ get_live_rootfs_path ()
     fi
 
     # in case what_is_mounted_on() returns empty above and nounset is used
-    : ${ROOTFS_DEV:=""}
+    : "${ROOTFS_DEV:=""}"
 
     #
     # use sysfs instead of losetup to get the current path of the backing_file
     #
-    IMAGE=$(cat "${SHUNIT_TMPDIR}"/sys/block/${ROOTFS_DEV##*/}/loop/backing_file 2>/dev/null)
+    IMAGE=$(cat "${SHUNIT_TMPDIR}"/sys/block/"${ROOTFS_DEV##*/}"/loop/backing_file 2>/dev/null)
 
     #
     # for backward compatibility with live-helper we keep the old mount-point
@@ -112,7 +112,7 @@ get_image_persistence_path_from_rootfs ()
     do
         dir="${IMAGE_DIR}/$rw_path"
         if [ -d "$dir" ]; then
-            echo "${dir##${ROOTFS_PATH}}"
+            echo "${dir##"${ROOTFS_PATH}"}"
             return 0
         fi
     done
@@ -171,7 +171,7 @@ export -f get_image_persistence_path
 get_image_version ()
 {
     local ROOTFS_DEV IMAGE ROOTFS_PATH
-    ROOTFS_DEV=( $(what_is_mounted_on '/run/live/rootfs.*') )
+    read -r -d '' -a ROOTFS_DEV < <(what_is_mounted_on '/run/live/rootfs.*') || true
     if [ ${#ROOTFS_DEV[@]} -gt 1 ] ; then
 	# PANIC!
 	echo "E: Found multiple rootfs devices: ${ROOTFS_DEV[@]}" >&2
@@ -179,15 +179,15 @@ get_image_version ()
     fi
 
     # in case what_is_mounted_on() returns empty above and nounset is used
-    : ${ROOTFS_DEV:=""}
+    : "${ROOTFS_DEV:=""}"
 
     #
     # use sysfs instead of losetup to get the current path of the backing_file
     #
-    IMAGE=$(cat "${SHUNIT_TMPDIR}"/sys/block/${ROOTFS_DEV##*/}/loop/backing_file 2>/dev/null)
+    IMAGE=$(cat "${SHUNIT_TMPDIR}"/sys/block/"${ROOTFS_DEV##*/}"/loop/backing_file 2>/dev/null)
 
     # strip the prefix where the rootfs
-    IMAGE=${IMAGE#$(get_live_rootfs_path)}
+    IMAGE=${IMAGE#"$(get_live_rootfs_path)"}
 
     # get rid of the image filename itself
     IMAGE=${IMAGE%/*}
@@ -201,7 +201,7 @@ get_image_version ()
 	return 1
     fi
 
-    echo ${IMAGE#/boot/}
+    echo "${IMAGE#/boot/}"
 }
 export -f get_image_version
 

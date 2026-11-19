@@ -147,18 +147,18 @@ testGetImagePersistencePathFromRootfs()
     # create mock mountpoint
     local MP="${SHUNIT_TMPDIR}"/mnt
     mkdir -p "${MP}"
-    assertEquals "RETURN: 1" "$(vyatta-live-image get_image_persistence_path_from_rootfs it-does-not-exists ${MP} || echo "RETURN: $?")"
+    assertEquals "RETURN: 1" "$(vyatta-live-image get_image_persistence_path_from_rootfs it-does-not-exists "${MP}" || echo "RETURN: $?")"
 
     # if persistence directory is missing return with default label
     mkdir -p "${MP}"/boot/999.mk.livecdrefactoring.09121125
-    assertEquals "RETURN: 1" "$(vyatta-live-image get_image_persistence_path_from_rootfs 999.mk.livecdrefactoring.09121125 ${MP} || echo "RETURN: $?")"
+    assertEquals "RETURN: 1" "$(vyatta-live-image get_image_persistence_path_from_rootfs 999.mk.livecdrefactoring.09121125 "${MP}" || echo "RETURN: $?")"
 
     mkdir -p "${MP}"/boot/999.mk.livecdrefactoring.09121125/persistence
-    assertEquals "/boot/999.mk.livecdrefactoring.09121125/persistence" "$(vyatta-live-image get_image_persistence_path_from_rootfs 999.mk.livecdrefactoring.09121125 ${MP})"
+    assertEquals "/boot/999.mk.livecdrefactoring.09121125/persistence" "$(vyatta-live-image get_image_persistence_path_from_rootfs 999.mk.livecdrefactoring.09121125 "${MP}")"
 
     # test for rw/ path
     mkdir -p "${MP}"/boot/999.mk.livecdrefactoring.09121125/persistence/rw
-    assertEquals "/boot/999.mk.livecdrefactoring.09121125/persistence/rw" "$(vyatta-live-image get_image_persistence_path_from_rootfs 999.mk.livecdrefactoring.09121125 ${MP})"
+    assertEquals "/boot/999.mk.livecdrefactoring.09121125/persistence/rw" "$(vyatta-live-image get_image_persistence_path_from_rootfs 999.mk.livecdrefactoring.09121125 "${MP}")"
 }
 
 testGetImageVersion ()
@@ -200,7 +200,7 @@ oneTimeSetUp()
 
   # the implementation knows about unittest implementation
   if [ -z "${SHUNIT_TMPDIR}" ] ; then
-      SHUNIT_TMPDIR=`mktemp -d`
+      SHUNIT_TMPDIR=$(mktemp -d)
       trap "rm -rf ${SHUNIT_TMPDIR}" EXIT 
   fi
   export SHUNIT_TMPDIR
@@ -215,4 +215,5 @@ tearDown()
 
 # load and run shUnit2
 [ -n "${ZSH_VERSION:-}" ] && SHUNIT_PARENT=$0
+# shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
 . shunit2

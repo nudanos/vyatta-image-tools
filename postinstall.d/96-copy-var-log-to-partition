@@ -7,9 +7,10 @@
 
 set -e
 
-: ${vyatta_prefix:=/opt/vyatta}
-: ${vyatta_sbindir:=${vyatta_prefix}/sbin}
+: "${vyatta_prefix:=/opt/vyatta}"
+: "${vyatta_sbindir:=${vyatta_prefix}/sbin}"
 
+# shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
 source "${vyatta_sbindir}/vyatta-install-image.functions"
 
 # If logging to separate partition copy /var/log to partition
@@ -20,7 +21,8 @@ copy_var_log ()
         return 0
     fi
 
-    local mnt_point=$(lsblk_exclude_floppy --output PARTLABEL,MOUNTPOINT | \
+    local mnt_point
+    mnt_point=$(lsblk_exclude_floppy --output PARTLABEL,MOUNTPOINT | \
 			  grep 'LOGS' | awk '{print $2}')
     if [[ -z "$mnt_point" ]]; then
         # No logging partition
@@ -28,11 +30,11 @@ copy_var_log ()
     fi
 
     # Don't try and copy if files(logs) are already there.
-    if ! [[ $(find $mnt_point/* -type f 2>/dev/null) ]]; then
+    if ! [[ $(find "$mnt_point"/* -type f 2>/dev/null) ]]; then
         lecho "Copying contents of /var/log/ to [$mnt_point]"
         run_command rsync -a --ignore-existing /var/log/* "$mnt_point"
     fi
-    run_command umount $mnt_point
+    run_command umount "$mnt_point"
 }
 
 case "$1" in

@@ -4,14 +4,16 @@
 # All Rights Reserved.
 
 # Running version of Vyatta
-: ${vyatta_prefix:=/opt/vyatta}
-: ${vyatta_exec_prefix:=$vyatta_prefix}
-: ${vyatta_bindir:=${vyatta_exec_prefix}/bin}
-: ${vyatta_sbindir:=${vyatta_exec_prefix}/sbin}
+: "${vyatta_prefix:=/opt/vyatta}"
+: "${vyatta_exec_prefix:=$vyatta_prefix}"
+: "${vyatta_bindir:=${vyatta_exec_prefix}/bin}"
+: "${vyatta_sbindir:=${vyatta_exec_prefix}/sbin}"
 export PATH="$PATH:${vyatta_sbindir}:${vyatta_bindir}"
 
-source ${vyatta_sbindir}/vyatta-install-image.functions
-source ${vyatta_sbindir}/vyatta-live-image.functions
+# shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
+source "${vyatta_sbindir}"/vyatta-install-image.functions
+# shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
+source "${vyatta_sbindir}"/vyatta-live-image.functions
 
 # Additonal debug logging
 export INSTALL_LOG=/var/log/vyatta/squash-chroot.log
@@ -20,13 +22,13 @@ declare -i MOUNTED=0
 safe_umount ()
 {
 	[[ $MOUNTED -eq 0 ]] && return
-	umount $merged/proc &>/dev/null
-	umount $merged/dev/pts &>/dev/null
-	umount $merged/dev &>/dev/null
-	umount $merged &>/dev/null
-	umount $lower_dir &>/dev/null
-	rmdir $merged &>/dev/null
-	rmdir $lower_dir &>/dev/null
+	umount "$merged"/proc &>/dev/null
+	umount "$merged"/dev/pts &>/dev/null
+	umount "$merged"/dev &>/dev/null
+	umount "$merged" &>/dev/null
+	umount "$lower_dir" &>/dev/null
+	rmdir "$merged" &>/dev/null
+	rmdir "$lower_dir" &>/dev/null
 	unset merged &>/dev/null
 	unset lower_dir &>/dev/null
 }
@@ -35,8 +37,8 @@ trap "{ safe_umount; }" EXIT HUP KILL
 apt_command ()
 {
 	aptcmd=${1:?Missing Command}
-	chroot ${merged} rm stdout stderr &>/dev/null
-	if ! run_command chroot ${merged} /bin/bash -c \
+	chroot "${merged}" rm stdout stderr &>/dev/null
+	if ! run_command chroot "${merged}" /bin/bash -c \
 		"DEBIAN_FRONTEND=noninteractive ${aptcmd} >stdout 2>stderr"; then
 		echo "Fatal error detected running apt-get update!"
 		return 1
@@ -50,7 +52,7 @@ apt_command ()
 	
 	# Apt-get was successful at this point, but may have run into dependency
 	# issues. Print stdout regardless.
-	cat ${merged}/stdout
+	cat "${merged}"/stdout
 
 	if grep -q '^[W]:' "${merged}/stderr"; then
 		echo "Apt-get succeeded but with warnings."
@@ -102,10 +104,10 @@ if [[ $RUNNING_IMAGE != $TARGET_IMAGE ]]; then
 	if [[ ! -f $squashfs ]]; then
 		base="/run/live/persistence/${ROOTFS_DEV##*/}/boot/${TARGET_IMAGE}/"
 		curr=$(pwd)
-		cd $base
+		cd "$base" || exit
 		eval squashfs=*.squashfs
 		squashfs=${base}${squashfs}
-		cd $curr
+		cd "$curr" || exit
 	fi
 
 	export merged=/mnt/merged
@@ -116,14 +118,14 @@ if [[ $RUNNING_IMAGE != $TARGET_IMAGE ]]; then
 	mkdir -p $lower_dir
 	mkdir -p $merged
 
-	if ! try_mount $squashfs $lower_dir; then
+	if ! try_mount "$squashfs" $lower_dir; then
 		safe_umount
 		logger error "$0: Failed to mount target squashfs"
 		fail_exit "Failed to mount target squashfs"
 	fi
 
 	margs="-t overlay -o noatime,upperdir=${upper_dir},lowerdir=${lower_dir},workdir=${work_dir} overlay $merged"
-	if ! try_mount $margs; then
+	if ! try_mount "$margs"; then
 		safe_umount
 		logger error "$0: Cannot mount overlay"
 		fail_exit "Cannot mount overlay"
@@ -157,38 +159,38 @@ elif [[ $COMMAND == "INSTALL" ]]; then
 		fi
 	done
 
-	if ! try_mount --bind /dev ${merged}/dev; then
+	if ! try_mount --bind /dev "${merged}"/dev; then
 		fail_exit "Failed to setup chroot"
 	fi
-	if ! try_mount --bind /dev/pts ${merged}/dev/pts; then
+	if ! try_mount --bind /dev/pts "${merged}"/dev/pts; then
 		fail_exit "Failed to setup chroot"
 	fi
-	if ! try_mount --bind /proc ${merged}/proc; then
+	if ! try_mount --bind /proc "${merged}"/proc; then
 		fail_exit "Failed to setup chroot"
 	fi
 
 	# Set up repo
 	TEMP_APT_REPO_DIR=/var/UPSTREAM
-	mkdir -p ${merged}${TEMP_APT_REPO_DIR}
-	run_command cp $VYATTA_NEW_PKGS ${merged}${TEMP_APT_REPO_DIR}/
-	pushd ${merged}${TEMP_APT_REPO_DIR}/ &>/dev/null
+	mkdir -p "${merged}"${TEMP_APT_REPO_DIR}
+	run_command cp "$VYATTA_NEW_PKGS" "${merged}"${TEMP_APT_REPO_DIR}/
+	pushd "${merged}"${TEMP_APT_REPO_DIR}/ &>/dev/null || exit
 	run_command dpkg-scanpackages ./ 2>/dev/null > ./Packages
 	if [[ $? != 0 ]]; then
 		safe_umount
 		logger error "$0: Failed to scan packages"
 		fail_exit "Failed to scan packages"
 	fi
-	popd &>/dev/null
-	chown -R _apt:root ${merged}${TEMP_APT_REPO_DIR}
-	chmod -R 700 ${merged}${TEMP_APT_REPO_DIR}
+	popd &>/dev/null || exit
+	chown -R _apt:root "${merged}"${TEMP_APT_REPO_DIR}
+	chmod -R 700 "${merged}"${TEMP_APT_REPO_DIR}
 
 	# Create and clear apt sources just in case there are lingering build
 	# time sources.
-	mkdir -p ${merged}/etc/apt/sources.list.d
-	echo > ${merged}/etc/apt/sources.list
+	mkdir -p "${merged}"/etc/apt/sources.list.d
+	echo > "${merged}"/etc/apt/sources.list
 
 
-	cat > ${merged}/etc/apt/sources.list.d/hotfix.list << EOF
+	cat > "${merged}"/etc/apt/sources.list.d/hotfix.list << EOF
 deb file:${TEMP_APT_REPO_DIR} ./
 EOF
 
@@ -212,10 +214,10 @@ EOF
 		logger error "$0: Apt-get upgrade failed"
 		fail_exit "Apt-get upgrade failed"
 	fi
-	run_command chroot ${merged} rm stderr stdout
-	run_command rm -rf ${merged}/${TEMP_APT_REPO_DIR}
-	run_command rm -rf ${merged}/etc/apt/sources.list.d/hotfix.list
-	run_command chroot ${merged} /bin/bash -c \
+	run_command chroot "${merged}" rm stderr stdout
+	run_command rm -rf "${merged}"/${TEMP_APT_REPO_DIR}
+	run_command rm -rf "${merged}"/etc/apt/sources.list.d/hotfix.list
+	run_command chroot "${merged}" /bin/bash -c \
 		"DEBIAN_FRONTEND=noninteractive apt-get clean"
 else
 	safe_umount
@@ -223,4 +225,4 @@ else
 fi
 
 safe_umount
-exit $ret
+exit "$ret"
