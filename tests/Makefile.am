@@ -10,6 +10,7 @@ TESTS += vyatta_live.pl
 TESTS += update_grub.pl
 TESTS += image_op.pl
 TESTS += image_tools.pl
+TESTS += rename_clone.pl
 TESTS += preinstall.virtualization.sh
 TESTS += vyatta-create-partition.functions.sh
 TESTS += vyatta-multiple-partition.functions.sh

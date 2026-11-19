@@ -86,8 +86,23 @@ sub err_exit {
 #
 sub err_exit_cleanup {
     my ($str) = @_;
-    run( [ 'rm', '-rf', "$image_path/$new_name" ] );
+    run( [ 'rm', '-rf', '--', "$image_path/$new_name" ] );
     err_exit($str);
+    return;
+}
+
+# Names install image refuses, as it does: reserved for grub and the
+# kernel files beside the images, and anything but letters, digits and
+# ._+- (a "/" would leave the boot directory; grub.cfg holds the name).
+sub name_problem {
+    my ($name) = @_;
+    return "Can't use reserved image name."
+      if $name eq "Old-non-image-installation"
+      || $name eq "grub"
+      || $name =~ /^(?:initrd|vmlinuz|System[.]map|config-|%%)/x;
+    return "Image name must be composed of a-z, A-Z, 0-9, or one of ._+-"
+      if $name !~ /^[a-zA-Z0-9._+-]+$/x;
+    return;
 }
 
 #
@@ -111,7 +126,7 @@ sub run_filter {
 sub get_remote_size {
 
     # Format of $remote is: user@hostname
-    if ( $remote =~ m/(.*)@(.*)/ ) {
+    if ( $remote =~ m/(.*)@(.*)/x ) {
         $remote_user = $1;
         $remote_host = $2;
     }
@@ -134,26 +149,25 @@ sub get_remote_size {
 
     printf("Password for $remote_user\@$remote_host: ");
     ReadMode 'noecho';
-    $remote_passwd = <STDIN>;
+    $remote_passwd = <STDIN>;    ## no critic (InputOutput::ProhibitExplicitStdin) reason: a password typed at the terminal
     ReadMode 'restore';
     printf("\n");
     chomp($remote_passwd);
 
     ( $err_code, $err ) = $cli->auth( $remote_host, $remote_user, $remote_passwd );
-    !defined($err)
-      or err_exit("Authentication failed: $err");
+    err_exit("Authentication failed: $err") if defined($err);
 
     ( $err, $output ) = $cli->run_op_cmd("show system image storage");
-    !defined($err)
-      or err_exit("Command failed: $err");
+    err_exit("Command failed: $err") if defined($err);
 
-    my @out_lines = split( /\n/, $output );
+    my @out_lines = split( /\n/x, $output );
     foreach my $line (@out_lines) {
-        if ( $line =~ m/($old_name)\s+(\d+)\s+(\d+)/ ) {
-            return ( $2, $3 );
+        if ( $line =~ m/\Q$old_name\E\s+(\d+)\s+(\d+)/x ) {
+            return ( $1, $2 );
         }
     }
     err_exit("Remote image $old_name not found");
+    return;
 }
 
 #
@@ -227,6 +241,44 @@ sub copy_image {
             err_exit_cleanup("Unable to create $new_path/$persistence");
         }
     }
+    return;
+}
+
+#
+# Main
+#
+
+# The space the clone needs, in kB; exits if there is not enough
+sub check_space {
+    my $space_avail = run_filter(
+        [ 'df', '-k', '--output=avail', $image_path ],
+        sub { return ( split( '\n', $_[0] ) )[-1]; }
+    );
+
+    if ( defined($remote) ) {
+        $cli = RestClient->new();
+        ( $ro_size, $rw_size ) = get_remote_size($remote);
+        if ( !defined($ro_size) || !defined($rw_size) ) {
+            err_exit("Unable to determine size of remote image $old_name");
+        }
+    }
+    else {
+        my $du_filter = sub { return ( split( ' ', $_[0] ) )[0]; };
+        $ro_size = run_filter( [ 'du', '-s', "$image_path/$old_name" ],              $du_filter );
+        $rw_size = run_filter( [ 'du', '-s', "$image_path/$old_name/$persistence" ], $du_filter );
+        if ( !looks_like_number($ro_size) || !looks_like_number($rw_size) ) {
+            err_exit("Unable to determine disk space for $image_path/$old_name\n");
+        }
+        $ro_size -= $rw_size;
+    }
+
+    my $space_needed = defined($no_rw) ? $ro_size : $ro_size + $rw_size;
+    if ( $space_avail <= $space_needed ) {
+        printf("Not enough space to store cloned image.\n");
+        printf("Need $space_needed MB, but only have $space_avail MB.\n");
+        exit(1);
+    }
+    return;
 }
 
 #
@@ -246,70 +298,32 @@ if ( !-e "$image_path" ) {
     $image_path = "";
 }
 
-if ( $old_name =~ m/(.*@.*):(.*)/ ) {
+if ( $old_name =~ m/(.*@.*):(.*)/x ) {
     $remote   = $1;
     $old_name = $2;
+}
+
+# a local or remote image, as install image names them
+if ( $old_name !~ /^[a-zA-Z0-9._+-]+$/x ) {
+    err_exit "Old name $old_name does not exist.\n";
 }
 
 if ( !defined($remote) && !-e "$image_path/$old_name" ) {
     err_exit "Old name $old_name does not exist.\n";
 }
 
-if (   ( "$new_name" eq "Old-non-image-installation" )
-    || ( "$new_name" eq "grub" )
-    || ( "$new_name" =~ /^initrd/ )
-    || ( "$new_name" =~ /^vmlinuz/ )
-    || ( "$new_name" =~ /^System\.map/ )
-    || ( "$new_name" =~ /^config-/ )
-    || ( "$new_name" =~ /^%%/ ) )
-{
-    err_exit "Can't use reserved image name.";
+if ( my $problem = name_problem($new_name) ) {
+    err_exit $problem;
 }
 
 if ( -e "$image_path/$new_name" ) {
     err_exit "New name $new_name already exists.";
 }
 
-# Check disk space
-my $space_avail = run_filter( [ 'df', '-k', '--output=avail', $image_path ],
-    sub { return ( split( '\n', $_[0] ) )[-1]; } );
-
-my $space_needed;
-if ( defined($remote) ) {
-    $cli = RestClient->new();
-    ( $ro_size, $rw_size ) = get_remote_size($remote);
-    defined($ro_size) && defined($rw_size)
-      or err_exit("Unable to determine size of remote image $old_name");
-}
-else {
-    my $du_filter = sub { return ( split( ' ', $_[0] ) )[0]; };
-    $ro_size = run_filter( [ 'du', '-s', "$image_path/$old_name" ],              $du_filter );
-    $rw_size = run_filter( [ 'du', '-s', "$image_path/$old_name/$persistence" ], $du_filter );
-    if ( !looks_like_number($ro_size) || !looks_like_number($rw_size) ) {
-        err_exit("Unable to determine disk space for $image_path/$old_name\n");
-    }
-    $ro_size -= $rw_size;
-}
-
-if ( defined($no_rw) ) {
-    $space_needed = $ro_size;
-}
-else {
-    $space_needed = $ro_size + $rw_size;
-}
-
-if ( $space_avail <= $space_needed ) {
-    printf("Not enough space to store cloned image.\n");
-    printf("Need $space_needed MB, but only have $space_avail MB.\n");
-    exit(1);
-}
-
+check_space();
 copy_image();
 
 printf("Setting up grub file...\n");
-
-my $grubfile = "${image_path}/grub/grub.cfg";
-my $grubfh;
 
 run( [ "$vyatta_sbindir/vyatta_update_grub.pl", "--generate-grub=$new_name" ] );
 
