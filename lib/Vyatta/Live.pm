@@ -18,22 +18,24 @@ package Vyatta::Live;
 use strict;
 use warnings;
 
+use Exporter qw(import);
 use File::Basename;
 use File::Copy;
-use File::Slurp qw/ edit_file_lines /;
+use File::Slurp qw/ edit_file_lines read_file /;
 use File::Sync  qw / fsync /;
 use File::Temp  qw/ :mktemp tempdir /;
+use IPC::Run3;
 use Sys::Syslog;
 use Template;
 use Try::Tiny;
 
-our ( @EXPORT, @ISA, $SCRIPT );
+## no critic (Modules::ProhibitAutomaticExportation) reason: the image scripts take these by default
+our @EXPORT =
+  qw(what_is_mounted_on get_live_image_root get_persistence_label parse_grub_cfg read_grub_config get_images_from_grub_entries list_images get_image_version get_image_storage get_kernel_command_line get_running_image get_default_boot_image delete_image set_default_boot_image is_installed_system print_default_index is_onie_system flush_grub_cfg);
+## use critic
+our $SCRIPT;
 
 BEGIN {
-    require Exporter;
-    @ISA = qw(Exporter);
-    @EXPORT =
-      qw(what_is_mounted_on get_live_image_root get_persistence_label parse_grub_cfg read_grub_config get_images_from_grub_entries list_images get_image_version get_image_storage get_kernel_command_line get_running_image get_default_boot_image delete_image set_default_boot_image is_installed_system print_default_index is_onie_system flush_grub_cfg);
 
     foreach ( $ENV{vyatta_sbindir}, qw(/opt/vyatta/sbin) ) {
         next if ( !defined($_) );
@@ -48,20 +50,22 @@ BEGIN {
     openlog("SystemImage");
 }
 
+# The output of a function of vyatta-live-image.functions, its words joined
+# by single spaces. $function may carry arguments of its own, separated by
+# spaces; the words go to bash as arguments, not as shell text.
 sub call_install_functions {
     my ( $class, $function, @arguments ) = @_;
-    my $args = join( " ", @arguments );
-    $args = " " . $args if length($args) > 0;
-
-    my $result = qx(/bin/bash -c 'source $SCRIPT ; echo \$($function$args)');
-    $result =~ s/^\s+|\s+$//g;
+    my @words  = ( split( /[ ]+/x, $function ), @arguments );
+    my $result = '';
+    run3( [ '/bin/bash', '-c', 'source "$0"; echo $("$@")', $SCRIPT, @words ], \undef, \$result );
+    $result =~ s/^\s+|\s+$//gx;
     return $result;
 }
 
 sub what_is_mounted_on {
     my ($path) = @_;
 
-    return split( / /, Vyatta::Live->call_install_functions( "what_is_mounted_on " . $path ) );
+    return split( /[ ]/x, Vyatta::Live->call_install_functions( "what_is_mounted_on " . $path ) );
 }
 
 sub get_live_image_root {
@@ -77,8 +81,39 @@ sub get_persistence_label {
 }
 
 sub get_persistence_path_from_rootfs {
-    return Vyatta::Live->call_install_functions( "get_image_persistence_path_from_rootfs", @_ );
+    my @args = @_;
+    return Vyatta::Live->call_install_functions( "get_image_persistence_path_from_rootfs", @args );
 }
+
+# One menu entry's kernel line, as parse_grub_cfg describes it
+sub _grub_entry {
+    my ( $line, $idx, $running_boot_img ) = @_;
+
+    # Remove extra space in grub.cfg kcmd as /proc/cmdline does not
+    # have trailing spaces.
+    $line =~ s/[ ]+/ /gx;
+
+    my %ehash = ( 'idx' => $idx, 'ver' => undef );
+
+    # union install
+    if ( $line =~ m{^\s+linux[ ]/boot/([^/ ]+)/.*[ ]boot=live[ ]}x ) {
+        $ehash{'ver'} = $1;
+    }
+    $ehash{'term'}     = $line =~ /console=tty0.*console=ttyS0/x ? 'serial' : 'kvm';
+    $ehash{'reset'}    = $line =~ /standalone_root_pw_reset/x    ? 1        : 0;
+    $ehash{'recovery'} = $line =~ /standalone_config_recovery/x  ? 1        : 0;
+
+    # the image name is text, not a pattern: names may hold a "+"
+    $ehash{'running_vers'} = $line =~ /\Q$running_boot_img\E\b/x ? 1 : 0;
+    return \%ehash;
+}
+
+# Settings outside the menu entries: the key each sets, and its pattern
+my @grub_settings = (
+    [ 'default',         qr/^set[ ]default=(\d+)$/x ],
+    [ 'superusers',      qr/^set[ ]superusers="(\S+)"$/x ],
+    [ 'password_pbkdf2', qr/^password_pbkdf2[ ]\w+[ ](\S+)$/x ],
+);
 
 sub parse_grub_cfg {
     my ( $grub_cfg, $running_boot_cmd ) = @_;
@@ -87,87 +122,43 @@ sub parse_grub_cfg {
     my @entries  = ();
     my $in_entry = 0;
     my $idx      = 0;
-    my $running_boot_img;
-    my $curver;
 
-    $running_boot_cmd =~ s/BOOT_IMAGE=//;
-    ($running_boot_img) = split( /\s+/, $running_boot_cmd, 2 );
-    foreach (@cfg_data) {
+    $running_boot_cmd =~ s/BOOT_IMAGE=//x;
+    my ($running_boot_img) = split( /\s+/x, $running_boot_cmd, 2 );
+    foreach my $line (@cfg_data) {
         if ($in_entry) {
-            if (/^}/) {
+            if ( $line =~ /^}/x ) {
                 if ( $in_entry == 1 ) {
 
                     # Entry did not have linux kernel line
-                    my %ehash = (
+                    push @entries,
+                      {
                         'idx'      => $idx,
                         'ver'      => undef,
                         'term'     => undef,
                         'reset'    => undef,
                         'recovery' => undef
-                    );
-                    push @entries, \%ehash;
+                      };
                 }
                 $in_entry = 0;
                 ++$idx;
             }
-            elsif (/^\s+linux /) {
-                my %ehash = (
-                    'idx'      => $idx,
-                    'ver'      => undef,
-                    'term'     => undef,
-                    'reset'    => undef,
-                    'recovery' => undef
-                );
-
-                # Remove extra space in grub.cfg kcmd as /proc/cmdline does not
-                # have trailing spaces.
-                $_ =~ s/[ ]+/ /g;
-
-                # kernel line
-                if (/^\s+linux \/boot\/([^\/ ]+)\/.* boot=live /) {
-
-                    # union install
-                    $ehash{'ver'} = $1;
-                }
-                if (/console=tty0.*console=ttyS0/) {
-                    $ehash{'term'} = 'serial';
-                }
-                else {
-                    $ehash{'term'} = 'kvm';
-                }
-                if (/standalone_root_pw_reset/) {
-                    $ehash{'reset'} = 1;
-                }
-                else {
-                    $ehash{'reset'} = 0;
-                }
-                if (/standalone_config_recovery/) {
-                    $ehash{'recovery'} = 1;
-                }
-                else {
-                    $ehash{'recovery'} = 0;
-                }
-                if (/$running_boot_img\b/) {
-                    $ehash{'running_vers'} = 1;
-                }
-                else {
-                    $ehash{'running_vers'} = 0;
-                }
-                push @entries, \%ehash;
+            elsif ( $line =~ /^\s+linux[ ]/x ) {
+                push @entries, _grub_entry( $line, $idx, $running_boot_img );
                 $in_entry++;
             }
+            next;
         }
-        elsif (/^set default=(\d+)$/) {
-            $ghash{'default'} = $1;
-        }
-        elsif (/^menuentry /) {
+        if ( $line =~ /^menuentry[ ]/x ) {
             $in_entry = 1;
+            next;
         }
-        elsif (/^set superusers="(\S+)"$/) {
-            $ghash{'superusers'} = $1;
-        }
-        elsif (/^password_pbkdf2 \w+ (\S+)$/) {
-            $ghash{'password_pbkdf2'} = $2;
+        foreach my $setting (@grub_settings) {
+            my ( $key, $pattern ) = @$setting;
+            if ( $line =~ $pattern ) {
+                $ghash{$key} = $1;
+                last;
+            }
         }
     }
 
@@ -212,13 +203,14 @@ sub open_grub_config {
 
 sub read_grub_config {
     my $fd       = open_grub_config();
-    my $cfg_data = do { local $/; <$fd>; };
+    my $cfg_data = do { local $/ = undef; <$fd>; };
     close($fd);
     return $cfg_data;
 }
 
 sub get_kernel_command_line {
-    my $running_boot_cmd = `cat /proc/cmdline | sed s/console=.*//g`;
+    my $running_boot_cmd = read_file('/proc/cmdline');
+    $running_boot_cmd =~ s/console=.*//gx;
     chomp($running_boot_cmd);
     return $running_boot_cmd;
 }
@@ -265,9 +257,18 @@ sub get_dpkg_path {
 
 sub get_version_from_dpkg {
     my ($image_path) = @_;
-    my $dpkg_path = get_dpkg_path($image_path);
-    my $vers =
-`dpkg-query --admindir=$dpkg_path --showformat='\${Version}' --show vyatta-version 2> /dev/null`;
+    my $dpkg_path    = get_dpkg_path($image_path);
+    my $vers         = '';
+    run3(
+        [
+            'dpkg-query',              "--admindir=$dpkg_path",
+            '--showformat=${Version}', '--show',
+            'vyatta-version'
+        ],
+        \undef,
+        \$vers,
+        \undef
+    );
     $vers = 'unknown' unless length($vers);
     return $vers;
 }
@@ -300,7 +301,7 @@ sub get_image_version {
         next unless ( -e $squash_file );
 
         my $squash_mount_path = tempdir( $TEMPLATE, CLEANUP => 1 )
-          or die "Can't create temp dir for squash mount: $!";
+          or die "Can't create temp dir for squash mount: $!\n";
 
         system( "mount", "-o", "loop,ro", "-t", "squashfs", $squash_file, $squash_mount_path );
 
@@ -330,17 +331,17 @@ sub read_key_value_file {
 
     open( my $fh, '<', $infofile )
       or return $out;
+    my @lines = <$fh>;
+    close($fh);
 
-    while (<$fh>) {
-        chomp($_);
-        my ( $key, $value ) = split( "=", $_ );
-        next if !defined($key) or !defined($value);
+    foreach my $line (@lines) {
+        chomp($line);
+        my ( $key, $value ) = split( "=", $line );
+        next if !defined($key) || !defined($value);
         chomp($key);
         chomp($value);
         $out->{$key} = $value;
     }
-
-    close($fh);
     return $out;
 }
 
@@ -357,6 +358,7 @@ sub cache_version {
 
     close($wfd);
     move( $tfile, $infofile );
+    return;
 }
 
 sub get_image_storage {
@@ -367,16 +369,19 @@ sub get_image_storage {
 
     return unless ( -e "$imagedir/$image" );
 
-    my ($total) = split( ' ', `du -s -b $imagedir/$image` );
-    $output->{'total'} = $total;
-
-    my ($read_only) =
-      split( ' ', `du -s -b $imagedir/$image --exclude=live-rw --exclude=persistence 2>/dev/null` );
-    $output->{'read-only'} = $read_only;
-
-    my ($read_write) =
-      split( ' ', `du -s -b $imagedir/$image/live-rw $imagedir/$image/persistence 2>/dev/null` );
-    $output->{'read-write'} = $read_write;
+    # the first number du prints
+    my $du = sub {
+        my ( $quiet, @args ) = @_;
+        my $out = '';
+        run3( [ 'du', '-s', '-b', @args ], \undef, \$out, $quiet ? \undef : undef );
+        my ($size) = split( ' ', $out );
+        return $size;
+    };
+    $output->{'total'} = $du->( 0, "$imagedir/$image" );
+    $output->{'read-only'} =
+      $du->( 1, "$imagedir/$image", '--exclude=live-rw', '--exclude=persistence' );
+    $output->{'read-write'} =
+      $du->( 1, "$imagedir/$image/live-rw", "$imagedir/$image/persistence" );
 
     return $output;
 }
@@ -411,6 +416,7 @@ sub set_default_boot_image {
 
     syslog( "warning|local3", "Default boot image has been changed from %s to %s'",
         $default_image, $image_name );
+    return;
 }
 
 sub print_default_index {
@@ -430,12 +436,14 @@ sub do_fsync {
             syslog( "warning|local3", "Failed to flush $f to disk" );
         }
     }
+    return;
 }
 
 sub flush_grub_cfg {
     my ($grub_cfg) = @_;
     my $grub_dir = dirname($grub_cfg);
     do_fsync( $grub_cfg, $grub_dir );
+    return;
 }
 
 sub set_default_grub_image {
@@ -444,13 +452,14 @@ sub set_default_grub_image {
     # Set default pointer in grub config file to point to the new
     # default version.
     try {
-        my $pat = qr/^set default=.*$/;
-        edit_file_lines( sub { s/$pat/set default=$def_index/ }, $grub_cfg, { atomic => 1 } );
+        my $pat = qr/^set[ ]default=.*$/x;
+        edit_file_lines( sub { s/$pat/set default=$def_index/x }, $grub_cfg, { atomic => 1 } );
         flush_grub_cfg($grub_cfg);
     }
     catch {
         die "Failed to set the default boot image: $_\n"
     };
+    return;
 }
 
 sub get_index_of_matching_image {
@@ -520,14 +529,16 @@ sub delete_grub_entries {
     my $rfd       = undef;
     return 'Cannot delete GRUB entries'
       if ( !open( $rfd, '<', $grub_cfg ) );
+    my @lines = <$rfd>;
+    close($rfd);
     my ( $wfd, $tfile ) = mkstemp('/tmp/boot-image.XXXXXX');
 
     my @entry = ();
     my ( $in_entry, $ver ) = ( 0, 0 );
-    while (<$rfd>) {
-        next if (/^$/);    # ignore empty lines
+    foreach my $line (@lines) {
+        next if ( $line =~ /^$/x );    # ignore empty lines
         if ($in_entry) {
-            if (/^}/) {
+            if ( $line =~ /^}/x ) {
                 if ( $ver ne $del_ver ) {
 
                     # output entry
@@ -542,26 +553,22 @@ sub delete_grub_entries {
                 @entry    = ();
             }
             else {
-                if (/^\s+linux/) {
-                    if (/^\s+linux \/boot\/([^\/ ]+)\/.* boot=live /) {
-
-                        # kernel line
-                        $ver = $1;
-                    }
+                # kernel line
+                if ( $line =~ m{^\s+linux[ ]/boot/([^/ ]+)/.*[ ]boot=live[ ]}x ) {
+                    $ver = $1;
                 }
-                push @entry, $_;
+                push @entry, $line;
             }
         }
-        elsif (/^menuentry /) {
+        elsif ( $line =~ /^menuentry[ ]/x ) {
             $in_entry = 1;
-            push @entry, $_;
+            push @entry, $line;
         }
         else {
-            print $wfd $_;
+            print $wfd $line;
         }
     }
     close($wfd);
-    close($rfd);
 
     my $p = ( stat($grub_cfg) )[2];
     die "Failed to modify GRUB configuration\n"
@@ -570,12 +577,14 @@ sub delete_grub_entries {
     move( $tfile, $grub_cfg )
       or die "Failed to delete GRUB entries\n";
     flush_grub_cfg($grub_cfg);
+    return;
 }
 
 sub get_boot_dir {
     my $live_image_root = get_live_image_root();
     my $UNION_BOOT      = "$live_image_root/boot";
     return $UNION_BOOT if ( -d $UNION_BOOT );
+    return;
 }
 
 sub check_image_exists {
@@ -583,6 +592,7 @@ sub check_image_exists {
     my ($image) =
       grep { $_->{'ver'} eq $image_name } @{ $gconfig->{'entries'} };
     die "Image \"$image_name\" not found\n" if !defined($image);
+    return;
 }
 
 sub delete_image {
@@ -595,10 +605,12 @@ sub delete_image {
     my $default_image = get_default_boot_image($gconfig);
     my $running_image = get_running_image($gconfig);
 
-    my $boot_dir = get_boot_dir();
+    # without a boot directory the path would be /IMAGE, at the root
+    my $boot_dir = get_boot_dir()
+      or die "Error deleting the image: no boot directory. Exiting...\n";
 
     delete_grub_entries($image_name);
-    system("rm -rf '$boot_dir/$image_name'");
+    system( 'rm', '-rf', '--', "$boot_dir/$image_name" );
     if ( $? >> 8 ) {
         die "Error deleting the image. Exiting...\n";
     }
@@ -613,6 +625,7 @@ sub delete_image {
     set_default_boot_image( $new_default, $gconfig );
 
     syslog( "warning|local3", "System Image $image_name has been deleted" );
+    return;
 }
 
 sub is_installed_system {
