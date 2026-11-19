@@ -36,7 +36,7 @@ testVirtualizationInNewImage ()
 oneTimeSetUp ()
 {
     local THIS_DIR
-    THIS_DIR="$(cd $(dirname "${0}") || exit; pwd -P)"
+    THIS_DIR="$(cd "$(dirname "${0}")" || exit; pwd -P)"
 
     vyatta_sbindir="${THIS_DIR}/../scripts"
     export vyatta_sbindir
@@ -48,7 +48,7 @@ oneTimeSetUp ()
     # the implementation knows about unittest implementation
     if [ -z "${SHUNIT_TMPDIR}" ] ; then
 	SHUNIT_TMPDIR=$(mktemp -d)
-	trap "rm -rf ${SHUNIT_TMPDIR}" EXIT
+	trap 'rm -rf "${SHUNIT_TMPDIR}"' EXIT
     fi
     export SHUNIT_TMPDIR
 
@@ -62,11 +62,12 @@ tearDown ()
 {
     # clean-up after every test
     if [ -n "${SHUNIT_TMPDIR}" ] ; then
-	rm -fr "${SHUNIT_TMPDIR}/*"
+	rm -fr "${SHUNIT_TMPDIR:?}"/*
     fi
 }
 
 # load and run shUnit2
+# shellcheck disable=SC2034 # reason: shunit2 reads it under zsh
 [ -n "${ZSH_VERSION:-}" ] && SHUNIT_PARENT=$0
-# shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
+# shellcheck disable=SC1091 # reason: shunit2 is a build dependency
 . shunit2

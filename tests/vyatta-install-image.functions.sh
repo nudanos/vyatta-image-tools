@@ -69,7 +69,7 @@ test_validate_partition_sizes ()
     #ret=$?
     #assertFalse "Too high percentages pass failed: $ret" $ret
 
-    rm -rf "${SHUNIT_TMPDIR}"/dev
+    rm -rf "${SHUNIT_TMPDIR:?}"/dev
     unset -f lsblk
 
 }
@@ -110,7 +110,7 @@ EOF
     local EXPECTED="VII_TEST_OUTPUT=hello
 VII_FUNCTION_TEST=olleh"
     assertEquals "${EXPECTED}" "${TEXT}"
-    assertTrue "logfile exists" "$(test -f "${SHUNIT_TMPDIR}/test.log" ; echo $?)"
+    assertTrue "logfile exists" "[ -f '${SHUNIT_TMPDIR}/test.log' ]"
     EXPECTED="[test_run_command_stderr]:run_command: DEBUG: ./test.sh
 [test_run_command_stderr]:run_command: + echo VII_TEST_OUTPUT=hello
 + func
@@ -156,26 +156,27 @@ test_validate_image_name ()
 
 test_install_image ()
 {
-    RESULT=$(install_image "${SHUNIT_TMPDIR}" "test0" "${SHUNIT_TMPDIR}")
+    ( install_image "${SHUNIT_TMPDIR}" "test0" "${SHUNIT_TMPDIR}" ) >/dev/null 2>&1
     assertFalse "Unexpected return value" $?
-    #echo ${RESULT} # cannot find squashfs
+    # cannot find squashfs
 
-    RESULT=$(install_image "${SHUNIT_TMPDIR}" "test0" "${SHUNIT_TMPDIR}")
+    ( install_image "${SHUNIT_TMPDIR}" "test0" "${SHUNIT_TMPDIR}" ) >/dev/null 2>&1
     assertFalse "Unexpected return value" $?
-    #echo ${RESULT} # already installed
+    # already installed
 
     mkdir -p "${SHUNIT_TMPDIR}"/live
     echo "SQUASH" > "${SHUNIT_TMPDIR}"/live/filesystem.squashfs
     mkdir -p "${SHUNIT_TMPDIR}"/boot
     echo "VMLINUX" > "${SHUNIT_TMPDIR}"/boot/vmlinux
     echo "INITRD" > "${SHUNIT_TMPDIR}"/boot/initrd.img
-    RESULT=$(install_image "${SHUNIT_TMPDIR}" "test1" "${SHUNIT_TMPDIR}")
+    # in a subshell: a failing install_image calls fail_exit
+    ( install_image "${SHUNIT_TMPDIR}" "test1" "${SHUNIT_TMPDIR}" ) >/dev/null
     assertTrue "Unexpected return value" $?
     assertEquals "SQUASH" "$(cat "${SHUNIT_TMPDIR}"/boot/test1/test1.squashfs)"
     assertEquals "VMLINUX" "$(cat "${SHUNIT_TMPDIR}"/boot/test1/vmlinux)"
     assertEquals "every boot file copied" "INITRD" "$(cat "${SHUNIT_TMPDIR}"/boot/test1/initrd.img)"
 
-    RESULT=$(test -f "${SHUNIT_TMPDIR}"/boot/test1/persistence/persistence.conf)
+    test -f "${SHUNIT_TMPDIR}"/boot/test1/persistence/persistence.conf
     assertTrue "No persistence.conf found" $?
 }
 
@@ -233,7 +234,7 @@ _create_filesystem_squashfs ()
 {
     local DESTDIR=$1
 
-    [ $# -ne 1 -o ! -d "${DESTDIR}" ] && return 1
+    { [ $# -ne 1 ] || [ ! -d "${DESTDIR}" ]; } && return 1
 
     cat > "${DESTDIR}"/filesystem.squashfs.uuencoded << 'EOF'
 begin 644 filesystem.squashfs.gz
@@ -431,10 +432,8 @@ test_parse_vii_config ()
     mkdir -p "${CONFIG_DIR}"
 
     OLD_IFS=${IFS} ; IFS=$'\n'
-    TEXT=(
-	$(IFS=${OLD_IFS} echo VII_NAME=test | parse_vii_config - 2>&1 ; \
-	    echo "RETURN=$?" ; echo "VII_NAME=${VII_NAME:-Unknown}")
-    )
+    read -r -d '' -a TEXT < <(IFS=${OLD_IFS} echo VII_NAME=test | parse_vii_config - 2>&1 ; \
+	    echo "RETURN=$?" ; echo "VII_NAME=${VII_NAME:-Unknown}") || true
     IFS=${OLD_IFS}
 
     assertTrue "Unexpected error string: ${TEXT[0]}" \
@@ -445,10 +444,8 @@ test_parse_vii_config ()
 	"${TEXT[2]}"
 
     OLD_IFS=${IFS} ; IFS=$'\n'
-    TEXT=(
-	$(IFS=${OLD_IFS} parse_vii_config "${CONFIG_DIR}"/invalid.config 2>&1 ; \
-	    echo "RETURN=$?" ; echo "VII_NAME=${VII_NAME:-Unknown}")
-    )
+    read -r -d '' -a TEXT < <(IFS=${OLD_IFS} parse_vii_config "${CONFIG_DIR}"/invalid.config 2>&1 ; \
+	    echo "RETURN=$?" ; echo "VII_NAME=${VII_NAME:-Unknown}") || true
     IFS=${OLD_IFS}
 
     assertTrue "Unexpected error string: ${TEXT[0]}" \
@@ -464,10 +461,8 @@ VII_NAME=test
 cat /etc/shadow-
 EOF
     OLD_IFS=${IFS} ; IFS=$'\n'
-    TEXT=(
-	$(IFS=${OLD_IFS} parse_vii_config "${CONFIG_DIR}"/invalid.config 2>&1 ; \
-	    echo "RETURN=$?" ; echo "VII_NAME=${VII_NAME:-Unknown}")
-    )
+    read -r -d '' -a TEXT < <(IFS=${OLD_IFS} parse_vii_config "${CONFIG_DIR}"/invalid.config 2>&1 ; \
+	    echo "RETURN=$?" ; echo "VII_NAME=${VII_NAME:-Unknown}") || true
     IFS=${OLD_IFS}
 
     assertTrue "Unexpected error string: ${TEXT[0]}" \
@@ -477,7 +472,7 @@ EOF
     assertEquals "Environment variable unset" "VII_NAME=Unknown" \
 	"${TEXT[2]}"
 
-    cat > "${CONFIG_DIR}"/valid.config <<EOF
+    cat > "${CONFIG_DIR}"/valid.config <<'EOF'
 # This is a comment
 VII_IMAGE_NAME=test
 VII_ADMIN_USERNAME=vyatta
@@ -486,10 +481,8 @@ VII_ADMIN_PASSWORD=$1$05FAjo9W$D3m1zEOKd12kOKYF.pVPc\/
 EOF
 
     OLD_IFS=${IFS} ; IFS=$'\n'
-    TEXT=(
-	$(IFS=${OLD_IFS} parse_vii_config "${CONFIG_DIR}"/valid.config 2>&1 ; \
-	    echo "RETURN=$?" ; echo "VII_NAME=${VII_IMAGE_NAME:-Unknown}")
-    )
+    read -r -d '' -a TEXT < <(IFS=${OLD_IFS} parse_vii_config "${CONFIG_DIR}"/valid.config 2>&1 ; \
+	    echo "RETURN=$?" ; echo "VII_NAME=${VII_IMAGE_NAME:-Unknown}") || true
     IFS=${OLD_IFS}
 
     assertEquals "Unexpected number of return lines" \
@@ -629,10 +622,8 @@ test_fetch_by_url ()
     }
 
     OLD_IFS=${IFS} ; IFS=$'\n'
-    TEXT=(
-	$(IFS=${OLD_IFS} fetch_by_url http://www.google.com/robots.txt 2>&1 ; \
-	    echo "RETURN=$?")
-    )
+    read -r -d '' -a TEXT < <(IFS=${OLD_IFS} fetch_by_url http://www.google.com/robots.txt 2>&1 ; \
+	    echo "RETURN=$?") || true
     IFS=${OLD_IFS}
     assertEquals "3" "${#TEXT[@]}"
     assertTrue "${TEXT[0]}" \
@@ -641,10 +632,8 @@ test_fetch_by_url ()
     assertEquals "RETURN=0" "${TEXT[2]}"
 
     OLD_IFS=${IFS} ; IFS=$'\n'
-    TEXT=(
-	$(IFS=${OLD_IFS} fetch_by_url http://www.google.com/robots.txt \
-	    out.txt 2>&1 ; echo "RETURN=$?")
-    )
+    read -r -d '' -a TEXT < <(IFS=${OLD_IFS} fetch_by_url http://www.google.com/robots.txt \
+	    out.txt 2>&1 ; echo "RETURN=$?") || true
     IFS=${OLD_IFS}
     assertEquals "3" "${#TEXT[@]}"
     assertTrue "${TEXT[0]}" \
@@ -660,10 +649,8 @@ test_fetch_by_url ()
     }
 
     OLD_IFS=${IFS} ; IFS=$'\n'
-    TEXT=(
-	$(IFS=${OLD_IFS} fetch_by_url http://www.google.com/robots.txt 2>&1 ; \
-	    echo "RETURN=$?")
-    )
+    read -r -d '' -a TEXT < <(IFS=${OLD_IFS} fetch_by_url http://www.google.com/robots.txt 2>&1 ; \
+	    echo "RETURN=$?") || true
     IFS=${OLD_IFS}
     assertEquals "4" "${#TEXT[@]}"
     assertTrue "${TEXT[0]}" \
@@ -672,10 +659,8 @@ test_fetch_by_url ()
 
     # an unsupported URL
     OLD_IFS=${IFS} ; IFS=$'\n'
-    TEXT=(
-	$(IFS=${OLD_IFS} fetch_by_url oink://www.google.com/robots.txt 2>&1 ; \
-	    echo "RETURN=$?")
-    )
+    read -r -d '' -a TEXT < <(IFS=${OLD_IFS} fetch_by_url oink://www.google.com/robots.txt 2>&1 ; \
+	    echo "RETURN=$?") || true
     IFS=${OLD_IFS}
     assertEquals "2" "${#TEXT[@]}"
     assertTrue "${TEXT[0]}" \
@@ -875,13 +860,14 @@ exit 0
 EOF
     chmod +x "${vyatta_datadir}/postinstall.d/00-test"
 
+    # shellcheck disable=SC2034 # reason: a global run_post_install_hooks must not export
     OINK_UNITTEST_GLOBAL="oink"
     OINK_UNITTEST_EXPORT="oink"
     export OINK_UNITTEST_EXPORT
 
     run_post_install_hooks "${SHUNIT_TMPDIR}" oink
 
-    assertTrue "logfile created" "$(test -f "${vyatta_datadir}/postinstall.d/00-test.log" ; echo $?)"
+    assertTrue "logfile created" "[ -f '${vyatta_datadir}/postinstall.d/00-test.log' ]"
     assertTrue "VII_00_TEST exists" "$(grep -qE '^VII_00_TEST=' "${vyatta_datadir}/postinstall.d/00-test.log" ; echo $?)"
     assertTrue "VII_CONSOLE exists" "$(grep -qE '^VII_CONSOLE=' "${vyatta_datadir}/postinstall.d/00-test.log" ; echo $?)"
     assertTrue "OINK_UNITTEST_EXPORT exists" "$(grep -qE '^OINK_UNITTEST_EXPORT=' "${vyatta_datadir}/postinstall.d/00-test.log" ; echo $?)"
@@ -893,9 +879,13 @@ test_filter_used_devices ()
     # the live medium is on sdb; sdc is in the RAID array being built,
     # sdd in a configured array and sda is the install drive
     what_is_mounted_on () { echo "/dev/sdb1"; }
+    # shellcheck disable=SC2034 # reason: filter_used_devices reads these
     local raid_array=(sdc)
+    # shellcheck disable=SC2034 # reason: filter_used_devices reads these
     local VII_VROUT_ARRAY_DISKS="sdd"
+    # shellcheck disable=SC2034 # reason: filter_used_devices reads these
     local VII_VIRT_ARRAY_DISKS=""
+    # shellcheck disable=SC2034 # reason: filter_used_devices reads these
     local VII_LOG_ARRAY_DISKS=""
     local INSTALL_DRIVE=sda
 
@@ -944,7 +934,7 @@ test_detect_console ()
 oneTimeSetUp ()
 {
     local THIS_DIR
-    THIS_DIR="$(cd $(dirname "${0}") || exit; pwd -P)"
+    THIS_DIR="$(cd "$(dirname "${0}")" || exit; pwd -P)"
 
     # make SUT visible
     PATH="${THIS_DIR}/../scripts/:${PATH}"
@@ -953,7 +943,7 @@ oneTimeSetUp ()
     # the implementation knows about unittest implementation
     if [ -z "${SHUNIT_TMPDIR}" ] ; then
 	SHUNIT_TMPDIR=$(mktemp -d)
-	trap "rm -rf ${SHUNIT_TMPDIR}" EXIT
+	trap 'rm -rf "${SHUNIT_TMPDIR}"' EXIT
     fi
     export SHUNIT_TMPDIR
 
@@ -973,8 +963,11 @@ oneTimeSetUp ()
 tearDown ()
 {
     # clean-up after every test
+    # everything but the directory mktempdir works in, which the functions
+    # create once when they are sourced
     if [ -n "${SHUNIT_TMPDIR}" ] ; then
-	rm -fr "${SHUNIT_TMPDIR}/*"
+	find "${SHUNIT_TMPDIR:?}" -mindepth 1 -maxdepth 1 \
+	    ! -path "${MKTEMPDIR_ROOT_DIR%/}" -exec rm -rf {} +
     fi
 }
 
@@ -995,6 +988,7 @@ test_password_acceptable ()
 # and /etc/shadow (through useradd). It used to be escaped for sed
 # ("\/") before either, so the installed shadow held an unusable hash
 # and logins worked only once the boot commit rewrote it.
+# shellcheck disable=SC2016 # reason: a literal crypt(3) hash
 HASH='$6$BoaQ.ZBLW1V.LKRV$1gQ/BDz/PJwTWS/x'
 
 # test_copy_config stubs these functions and does not restore them
@@ -1046,7 +1040,9 @@ test_admin_account_gets_raw_hash ()
         done
     }
     becho () { :; }
-    VII_ADMIN_USERNAME=admin
+    # shellcheck disable=SC2034 # reason: create_admin_account reads them
+    VII_ADMIN_USERNAME="admin"
+    # shellcheck disable=SC2034 # reason: create_admin_account reads them
     VII_ADMIN_PASSWORD=$HASH
     create_admin_account "$cfg" "${SHUNIT_TMPDIR}"/root
     vyatta_sbindir=$saved_sbindir
@@ -1056,6 +1052,7 @@ test_admin_account_gets_raw_hash ()
 }
 
 # load and run shUnit2
+# shellcheck disable=SC2034 # reason: shunit2 reads it under zsh
 [ -n "${ZSH_VERSION:-}" ] && SHUNIT_PARENT=$0
-# shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
+# shellcheck disable=SC1091 # reason: shunit2 is a build dependency
 . shunit2

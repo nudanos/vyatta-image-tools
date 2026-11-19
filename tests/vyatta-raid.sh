@@ -69,9 +69,9 @@ oneTimeSetUp ()
     THIS_DIR="$(cd "$(dirname "${0}")" || exit; pwd -P)"
     vyatta_sbindir="${THIS_DIR}/../scripts"
     export vyatta_sbindir
-    # shellcheck source=../scripts/vyatta-create-partition
+    # shellcheck disable=SC1091 # reason: the scripts under test, next to this directory
     . "${THIS_DIR}"/../scripts/vyatta-create-partition
-    # shellcheck source=../scripts/vyatta-multiple-partition.functions
+    # shellcheck disable=SC1091 # reason: the scripts under test, next to this directory
     . "${THIS_DIR}"/../scripts/vyatta-multiple-partition.functions
 }
 
@@ -87,4 +87,5 @@ tearDown ()
 }
 
 # load and run shUnit2
+# shellcheck disable=SC1091 # reason: shunit2 is a build dependency
 . shunit2

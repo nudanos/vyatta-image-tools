@@ -16,7 +16,7 @@ test_part_num_list ()
     _setup_basic_vrouter_hdd
     output=$(part_num_list sda)
     assertEquals '1 2 3 4' "$output"
-    rm -rf "${SHUNIT_TMPDIR}"/dev/*
+    rm -rf "${SHUNIT_TMPDIR:?}"/dev/*
 
     # One more test with double digits return
     for i in $(seq 1 12); do
@@ -24,7 +24,7 @@ test_part_num_list ()
     done
     output=$(part_num_list sda)
     assertEquals '1 2 3 4 5 6 7 8 9 10 11 12' "$output"
-    rm -rf "${SHUNIT_TMPDIR}"/dev/*
+    rm -rf "${SHUNIT_TMPDIR:?}"/dev/*
 }
 
 test_to_kiB () {
@@ -66,7 +66,7 @@ _test_first_missing_part ()
 oneTimeSetUp ()
 {
     local THIS_DIR
-    THIS_DIR="$(cd $(dirname "${0}") || exit; pwd -P)"
+    THIS_DIR="$(cd "$(dirname "${0}")" || exit; pwd -P)"
 
     # make SUT visible
     PATH="${THIS_DIR}/../scripts/:${PATH}"
@@ -75,7 +75,7 @@ oneTimeSetUp ()
     # the implementation knows about unittest implementation
     if [ -z "${SHUNIT_TMPDIR}" ] ; then
 	SHUNIT_TMPDIR=$(mktemp -d)
-	trap "rm -rf ${SHUNIT_TMPDIR}" EXIT
+	trap 'rm -rf "${SHUNIT_TMPDIR}"' EXIT
     fi
     export SHUNIT_TMPDIR
 
@@ -92,7 +92,7 @@ tearDown ()
 {
     # clean-up after every test
     if [ -n "${SHUNIT_TMPDIR}" ] ; then
-	rm -fr "${SHUNIT_TMPDIR}/*"
+	rm -fr "${SHUNIT_TMPDIR:?}"/*
     fi
 
     _clean_up
@@ -100,6 +100,7 @@ tearDown ()
 
 
 # load and run shUnit2
+# shellcheck disable=SC2034 # reason: shunit2 reads it under zsh
 [ -n "${ZSH_VERSION:-}" ] && SHUNIT_PARENT=$0
-# shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
+# shellcheck disable=SC1091 # reason: shunit2 is a build dependency
 . shunit2

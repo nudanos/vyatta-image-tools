@@ -7,7 +7,7 @@
 
 _setup_fdisk ()
 {
-  local arr=( $@ )
+  local arr=( "$@" )
 
   cat > "${SHUNIT_TMPDIR}"/fdisk <<EOF
 Disk /dev/sda: 232.9 GiB, 250059350016 bytes, 488397168 sectors
@@ -30,7 +30,7 @@ EOF
 }
 
 _setup_fdisk_random ()
-{ local arr=( $@ )
+{ local arr=( "$@" )
 
   cat > "${SHUNIT_TMPDIR}"/fdisk <<EOF
 Disk /dev/sda: 232.9 GiB, 250059350016 bytes, 488397168 sectors
@@ -56,10 +56,10 @@ EOF
 }
 _setup_e2label ()
 {
-  local arr=( $@ )
+  local arr=( "$@" )
   mkdir -p "${SHUNIT_TMPDIR}"/dev
   for i in $(seq 0 $(( ${#arr[@]} - 1 ))); do
-    echo "${arr[$i]}" > "${SHUNIT_TMPDIR}"/dev/sda"$(expr "$i" + 1)"
+    echo "${arr[$i]}" > "${SHUNIT_TMPDIR}"/dev/sda$(( i + 1 ))
   done
 
   function e2label () {
@@ -81,12 +81,14 @@ _clean_up ()
 test__add_part ()
 {
   VII_PART_LIST="vRouter 1024 / LIBVIRT 2048 /var/lib/libvirt/images"
-  LIST=$(_add_part ${VII_PART_LIST[@]} "part3" "4096" "/mnt/part3")
+  read -r -a parts <<< "$VII_PART_LIST"
+  LIST=$(_add_part "${parts[@]}" "part3" "4096" "/mnt/part3")
   assertEquals "vRouter 1024 / LIBVIRT 2048 /var/lib/libvirt/images part3 4096 /mnt/part3" "$LIST"
 
   # I.e. no added whitespaces
   VII_PART_LIST=""
-  LIST=$(_add_part ${VII_PART_LIST[@]} "part3" "4096" "/mnt/part3")
+  read -r -a parts <<< "$VII_PART_LIST"
+  LIST=$(_add_part "${parts[@]}" "part3" "4096" "/mnt/part3")
   assertEquals "part3 4096 /mnt/part3" "$LIST"
 }
 
@@ -94,7 +96,8 @@ test__rm_part ()
 {
   # Remove last in a list
   VII_PART_LIST="vRouter 1024 / LIBVIRT 2048 /var/lib/libvirt/images"
-  LIST=$(_rm_part ${VII_PART_LIST[@]})
+  read -r -a parts <<< "$VII_PART_LIST"
+  LIST=$(_rm_part "${parts[@]}")
   assertEquals "vRouter 1024 /" "$LIST"
 }
 
@@ -119,7 +122,8 @@ test__adjust_sizes ()
 
 oneTimeSetUp ()
 {
-    local THIS_DIR="$(cd $(dirname "${0}") || exit; pwd -P)"
+    local THIS_DIR
+    THIS_DIR="$(cd "$(dirname "${0}")" || exit; pwd -P)"
 
     # make SUT visible
     PATH="${THIS_DIR}/../scripts/:${PATH}"
@@ -128,7 +132,7 @@ oneTimeSetUp ()
     # the implementation knows about unittest implementation
     if [ -z "${SHUNIT_TMPDIR}" ] ; then
 	SHUNIT_TMPDIR=$(mktemp -d)
-	trap "rm -rf ${SHUNIT_TMPDIR}" EXIT
+	trap 'rm -rf "${SHUNIT_TMPDIR}"' EXIT
     fi
     export SHUNIT_TMPDIR
 
@@ -137,6 +141,7 @@ oneTimeSetUp ()
     TMPDIR=${SHUNIT_TMPDIR}
     export TMPDIR
 
+    # shellcheck disable=SC1091 # reason: the script under test, next to this directory
     . "${THIS_DIR}"/../scripts/vyatta-multiple-partition.functions
 }
 
@@ -144,11 +149,13 @@ tearDown ()
 {
     # clean-up after every test
     if [ -n "${SHUNIT_TMPDIR}" ] ; then
-	rm -fr "${SHUNIT_TMPDIR}/*"
+	rm -fr "${SHUNIT_TMPDIR:?}"/*
     fi
 }
 
 
 # load and run shUnit2
+# shellcheck disable=SC2034 # reason: shunit2 reads it under zsh
 [ -n "${ZSH_VERSION:-}" ] && SHUNIT_PARENT=$0
+# shellcheck disable=SC1091 # reason: shunit2 is a build dependency
 . shunit2

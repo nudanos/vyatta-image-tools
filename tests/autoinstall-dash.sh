@@ -17,6 +17,7 @@ echo 'autoinstall settings' > "$work/vii.config"
 echo "BOOT_IMAGE=/live/vmlinuz boot=live vyatta-autoinstall=file:$work/vii.config vyatta-autoinstall.debug quiet" > "$work/cmdline"
 mkdir -p "$work/root" "$work/normal" "$work/early"
 
+# shellcheck disable=SC2016 # reason: the script runs in the namespace, with its own arguments
 unshare -m sh -c '
     mount --bind "$1/cmdline" /proc/cmdline
     rootmnt="$1/root" dash "$2/backend/initramfs-tools/scripts/init-bottom/vyatta-autoinstall"

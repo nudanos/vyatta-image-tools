@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # shellcheck disable=SC2317 # reason: shunit2 calls the tests, and the mocks they define, by name
 #
 # Helper functions for unit tests
@@ -14,12 +15,12 @@ _setup_is_onie_boot ()
 }
 
 _setup_partition () {
-    local arr=( $@ )
+    local arr=( "$@" )
     local device=$1
-    local lsblk_args=( ${arr[@]:1} )
+    local lsblk_args=( "${arr[@]:1}" )
     
     mkdir -p "${SHUNIT_TMPDIR}/dev"
-    echo ${lsblk_args[@]} >> "${SHUNIT_TMPDIR}/dev/$device"
+    echo "${lsblk_args[@]}" >> "${SHUNIT_TMPDIR}/dev/$device"
 }
 
 _setup_basic_vrouter_hdd () {
@@ -67,7 +68,7 @@ _setup_lsblk ()
             ROOT_DEV=$(echo "$DEV" | grep -o '[sv]d[a-z]')
             shift
             ;;
-        -d|-*d|-*d*|-d*)
+        -*d*)
             NODEPS=true
             shift
             ;;
@@ -81,7 +82,7 @@ _setup_lsblk ()
     while read -r device_line
     do
         resp=''
-        for out_arg in ${OUT_REPLY[@]}; do
+        for out_arg in "${OUT_REPLY[@]}"; do
             resp="$resp$(echo "$device_line" | grep -o "${out_arg}=[A-Za-z0-9]*" | cut -d'=' -f2),"
         done
         [[ -n $resp ]] && resp=${resp::-1}
@@ -89,7 +90,7 @@ _setup_lsblk ()
         if [[ $NODEPS ]]; then
             return
         fi
-    done < <(cat "${SHUNIT_TMPDIR}"/dev/"$ROOT_DEV" | grep "$DEV")
+    done < <(grep "$DEV" "${SHUNIT_TMPDIR}"/dev/"$ROOT_DEV")
 
    }
     export -f lsblk
@@ -98,7 +99,7 @@ _setup_lsblk ()
 
 _setup_parted ()
 {
-  local arr=( $@ )
+  local arr=( "$@" )
 
   cat > "${SHUNIT_TMPDIR}"/parted <<EOF
 Model: Virtio Block Device (virtblk)
@@ -120,7 +121,7 @@ EOF
 }
 
 _setup_parted_random ()
-{ local arr=( $@ )
+{ local arr=( "$@" )
 
   cat > "${SHUNIT_TMPDIR}"/parted <<EOF
 Disk /dev/sda: 232.9 GiB, 250059350016 bytes, 488397168 sectors
@@ -146,10 +147,10 @@ EOF
 }
 _setup_e2label ()
 {
-  local arr=( $@ )
+  local arr=( "$@" )
   mkdir -p "${SHUNIT_TMPDIR}"/dev
   for i in $(seq 0 $(( ${#arr[@]} - 1 ))); do
-    echo "${arr[$i]}" > "${SHUNIT_TMPDIR}"/dev/sda"$(expr "$i" + 1)"
+    echo "${arr[$i]}" > "${SHUNIT_TMPDIR}"/dev/sda$(( i + 1 ))
   done
 
   function e2label () {
