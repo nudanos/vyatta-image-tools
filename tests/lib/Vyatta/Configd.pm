@@ -26,6 +26,12 @@ sub call_rpc_hash {
     return {};
 }
 
+# a configuration session, as accepting an ssh host key opens
+sub session_setup    { return 1; }
+sub commit           { return 1; }
+sub session_teardown { return 1; }
+sub tree_get_hash    { return {}; }
+
 package Vyatta::Configd;
 
 1;

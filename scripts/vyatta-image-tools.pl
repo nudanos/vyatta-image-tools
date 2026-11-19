@@ -1,4 +1,4 @@
-#!/usr/bin/perl -w
+#!/usr/bin/perl
 # SPDX-License-Identifier: GPL-2.0-only
 
 # Copyright (c) 2017-2020, AT&T Intellectual Property.
@@ -7,10 +7,12 @@
 # Copyright (c) 2014-2017 by Brocade Communications Systems, Inc.
 # All rights reserved.
 
+use strict;
+use warnings;
+
 use Getopt::Long;
 use lib "/opt/vyatta/share/perl5/";
 
-use strict;
 use IO::Prompt;
 use File::Slurp qw(read_file);
 
@@ -34,10 +36,12 @@ $u  = $ENV{VY_COPY_USER}       if defined $ENV{VY_COPY_USER};
 $p  = $ENV{VY_COPY_PASS}       if defined $ENV{VY_COPY_PASS};
 $si = $ENV{VY_COPY_SOURCEINTF} if defined $ENV{VY_COPY_SOURCEINTF};
 
-use constant {
-    DOWNLOAD => 0,
-    UPLOAD   => 1,
-};
+# URL schemes copy file takes (set before the actions below run)
+my %url_schemes = map { $_ => 1 } qw(tftp http ftp scp sftp);
+
+# the direction of a curl transfer
+my $DOWNLOAD              = 0;
+my $UPLOAD                = 1;
 my $VYATTA_SHARED_STORAGE = '/opt/vyatta/sbin/vyatta_shared_storage';
 
 GetOptions(
@@ -82,7 +86,7 @@ sub check_home {
         my @pwe = getpwuid($uid);
         $home = $pwe[7] if ( scalar(@pwe) >= 8 );
     }
-    return unless defined($home) and length($home) > 1;
+    return if !defined($home) || length($home) <= 1;
     return substr( $file, 0, length($home) ) eq $home;
 }
 
@@ -100,16 +104,17 @@ sub check_file_perm {
     return;
 }
 
+# The place a file argument names and its path: running, disk-install, an
+# image's name, or url (the argument itself)
 sub conv_file {
-    my $file   = " ";
-    my $filein = pop(@_);
-    $file = $filein;
+    my ($filein) = @_;
+    my $file = $filein;
     my $topdir;
-    if ( $file =~ /(.+?):\/\/(.*)/ ) {
+    if ( $file =~ m{(.+?)://(.*)}x ) {
         $topdir = $1;
         $file   = $2;
     }
-    elsif ( $file =~ /^\// ) {
+    elsif ( $file =~ m{^/}x ) {
         $topdir = "running";
     }
     else {
@@ -122,58 +127,45 @@ sub conv_file {
     elsif ( lc($topdir) eq 'disk-install' ) {
         $file = "$live_image_root/$file";
     }
-    elsif ( lc($topdir) eq 'tftp' ) {
-        $file   = $filein;
-        $topdir = 'url';
-    }
-    elsif ( lc($topdir) eq 'http' ) {
-        $file   = $filein;
-        $topdir = 'url';
-    }
-    elsif ( lc($topdir) eq 'ftp' ) {
-        $file   = $filein;
-        $topdir = 'url';
-    }
-    elsif ( lc($topdir) eq 'scp' ) {
-        $file   = $filein;
-        $topdir = 'url';
-    }
-    elsif ( lc($topdir) eq 'sftp' ) {
+    elsif ( $url_schemes{ lc($topdir) } ) {
         $file   = $filein;
         $topdir = 'url';
     }
     else {
+        my $found;
         foreach (qw(live-rw persistence persistence/rw)) {
             print "$live_image_root/boot/$topdir/$_ \n";
 
             if ( -e "$live_image_root/boot/$topdir/$_/$file" ) {
-                $file = "$live_image_root/boot/$topdir/$_/$file";
+                $found = "$live_image_root/boot/$topdir/$_/$file";
                 last;
             }
         }
 
-        if ( length $file == 0 ) {
+        # not one of the image's directories: the file is not there
+        if ( !defined $found ) {
             print "Image $topdir not found!\n";
             exit 1;
         }
+        $file = $found;
     }
 
     # Trim extra /'s for pretty output
-    $file =~ s/^\/\//\//g;
+    $file =~ s{^//}{/}gx;
     return ( $topdir, $file );
 }
 
 sub conv_file_to_rel {
     my ( $topdir, $filename ) = @_;
     if ( $topdir eq "running" ) {
-        $filename =~ s?/?$topdir://?;
+        $filename =~ s{/}{$topdir://}x;
     }
     elsif ( $topdir eq "disk-install" ) {
-        $filename =~ s?$live_image_root/?$topdir://?;
+        $filename =~ s{\Q$live_image_root\E/}{$topdir://}x;
     }
     else {
-        $filename =~
-          s?$live_image_root/boot/$topdir/(live-rw|persistence|persistence/rw)/?$topdir://?;
+        my $image_dirs = qr{(?:live-rw|persistence|persistence/rw)}x;
+        $filename =~ s{\Q$live_image_root\E/boot/\Q$topdir\E/$image_dirs/}{$topdir://}x;
     }
     return $filename;
 }
@@ -189,34 +181,43 @@ sub delete_file {
     if ( -d $file ) {
         my $print_dir = conv_file_to_rel( $topdir, $file );
         if ( y_or_n("Do you want to erase the entire $print_dir directory?") ) {
-            system("rm -rf $file");
+            system( 'rm', '-rf', '--', $file );
             print("Directory erased\n");
         }
     }
     elsif ( -f $file ) {
         my $print_file = conv_file_to_rel( $topdir, $file );
         if ( y_or_n("Do you want to erase the $print_file file?") ) {
-            system("rm -rf $file");
+            system( 'rm', '-rf', '--', $file );
             print("File erased\n");
         }
     }
+    return;
+}
+
+# $text with each line's eight-space indent removed, after a newline, and
+# without its last newline: the form of the questions below
+sub question {
+    my ($text) = @_;
+    $text =~ s/^[ ]{8}//mgx;
+    chomp $text;
+    return "\n$text";
 }
 
 sub insecure_confirm {
-    my $host = shift;
+    my ($host) = @_;
 
     return 0 unless $insecure;
 
-    (
-        my $msg = qq{
+    my $msg = question(<<"END");
         The authenticity of host '$host' cannot be verified.
         You have chosen to skip host validation. While the traffic is encrypted,
         this option is insecure in that the remote host identification will
         not be checked. So man-in-the-middle attacks (MITM) cannot be detected
         due to a subsequent change to the public key of the host.
         By accepting, you are trusting this host for this SSH connection.
-        Are you sure you want to continue?}
-    ) =~ s/^ {8}//mg;
+        Are you sure you want to continue?
+END
 
     return 1 if y_or_n($msg);
 
@@ -225,8 +226,8 @@ sub insecure_confirm {
 }
 
 sub ssh_keys_manage {
-    my $uristr = shift;
-    return unless $uristr =~ m{(.+?)://(.*)};
+    my ($uristr) = @_;
+    return unless $uristr =~ m{(.+?)://(.*)}x;
 
     my $scheme = lc($1);
     my $part   = $2;
@@ -238,34 +239,34 @@ sub ssh_keys_manage {
     my $uri  = URI->new( "sftp://" . $part );
     my $host = $uri->host();
     my $port = $uri->port();
-    $host =~ s/:.*//;
+    $host =~ s/:.*//x;
     return unless length($host);
     return if insecure_confirm($host);
 
     my $known_hosts_file = $SSH_KNOWN_HOSTS;
-    my $vrfcmd           = '';
+    my @vrfcmd           = ();
     if ( length( $rtdomain // '' ) ) {
         $known_hosts_file = "/run/ssh/vrf/$rtdomain/ssh_known_hosts";
-        $vrfcmd           = "/usr/sbin/chvrf '$rtdomain' ";
+        @vrfcmd           = ( 'chvrf', $rtdomain );
     }
 
     my $key_req = join( ",", @SSH_KEY_TYPES );
-    my @key_entries =
-      qx(${vrfcmd}/usr/bin/ssh-keyscan -p '$port' -H -t $key_req '$host' 2>/dev/null)
-      or return;
-    chomp(@key_entries);
+    my $keyscan = '';
+    run3( [ @vrfcmd, 'ssh-keyscan', '-p', $port, '-H', '-t', $key_req, $host ],
+        \undef, \$keyscan, \undef );
+    my @key_entries = split /\n/x, $keyscan;
+    return unless @key_entries;
 
     my ( $key_entry, $stored_fp_str, $stored_fp_key_type ) =
       ssh_key_select( $known_hosts_file, $host, @key_entries );
     return unless $key_entry;
 
-    my ( $hash, $key_type, $pub_key ) = split / /, $key_entry;
+    my ( $hash, $key_type, $pub_key ) = split /[ ]/x, $key_entry;
     my ( $fp_str, $fp_key_type ) = ssh_get_fingerprint($key_entry);
 
     if ($stored_fp_str) {
 
-        (
-            my $msg = qq{
+        my $msg = question(<<"END");
         ***********************************************************
         *    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED      *
         ***********************************************************
@@ -279,8 +280,8 @@ sub ssh_keys_manage {
         By accepting, you are trusting the new host key from now on for all
         initiated SSH connections, the config will be updated using this hash:
         $hash
-        Are you sure you want to continue?}
-        ) =~ s/^ {8}//mg;
+        Are you sure you want to continue?
+END
 
         return unless y_or_n($msg);
 
@@ -307,15 +308,14 @@ sub ssh_keys_manage {
     }
     else {
 
-        (
-            my $msg = qq{
+        my $msg = question(<<"END");
         The authenticity of host '$host' cannot be verified.
         $fp_key_type key fingerprint is $fp_str.
         By accepting, you are trusting this host from now on for all initiated
         SSH connections, and the configuration will be updated using this hash:
         $hash
-        Are you sure you want to continue?}
-        ) =~ s/^ {8}//mg;
+        Are you sure you want to continue?
+END
 
         return unless y_or_n($msg);
 
@@ -325,6 +325,7 @@ sub ssh_keys_manage {
         $cfg_client->commit("User accepted ssh host key for '$host'");
         $cfg_client->session_teardown();
     }
+    return;
 }
 
 sub url_copy {
@@ -342,17 +343,16 @@ sub url_copy {
             print "Cannot upload an entire directory to url\n";
             exit 1;
         }
-        elsif ( $to =~ /http/ ) {
+        elsif ( $to =~ /http/x ) {
             print "Cannot upload to http url\n";
             exit 1;
         }
         ssh_keys_manage($to);
-        curl( $from, $to, UPLOAD );
+        curl( $from, $to, $UPLOAD );
     }
     elsif ( $f_topdir eq 'url' ) {
         if ( -d $to ) {
-            $from =~ /.*\/(.*)/;
-            my $from_file = $1;
+            my ($from_file) = $from =~ m{.*/(.*)}x;
             $to = "$to/$from_file";
             exit 1 unless check_file_perm( $to, 'rw' );
             if ( -f "$to" ) {
@@ -362,7 +362,7 @@ sub url_copy {
             }
         }
         ssh_keys_manage($from);
-        curl( $from, $to, DOWNLOAD );
+        curl( $from, $to, $DOWNLOAD );
     }
     exit 0;
 }
@@ -380,8 +380,7 @@ sub copy {
     }
     exit 1 unless check_file_perm( $from, 'r' );
     exit 1 unless check_file_perm( $to,   'rw' );
-    $from =~ /.*\/(.*)/;
-    my $from_file = $1;
+    my ($from_file) = $from =~ m{.*/(.*)}x;
     if ( -d $from && -e $to && !( -d $to ) ) {
         print "Cannot copy a directory to a file.\n";
         return 1;
@@ -399,6 +398,7 @@ sub copy {
     else {
         rsync( $from, $to );
     }
+    return;
 }
 
 sub update {
@@ -437,32 +437,33 @@ sub update {
       . "config.preclone\n"
       . "Do you wish to continue?";
     if ( y_or_n("$msg") ) {
-        system("rm -rf $to/config.preclone");
-        system("mv $to/config $to/config.preclone") if ( -d "$to/config" );
+        system( 'rm', '-rf', '--',         "$to/config.preclone" );
+        system( 'mv', '--',  "$to/config", "$to/config.preclone" ) if ( -d "$to/config" );
         my $confdir = "config";
         $confdir = "opt/vyatta/etc/config" if ( $f_topdir eq "disk-install" );
         if ( rsync( "$from/$confdir", $to ) > 0 ) {
             print "Clone Failed!\nRestoring old config\n";
-            system("mv $to/config.preclone $to/config");
+            system( 'mv', '--', "$to/config.preclone", "$to/config" );
         }
     }
+    return;
 }
 
 sub rsync {
     my ( $from, $to ) = @_;
-    system("rsync -a --progress --exclude '.wh.*' $from $to");
+    system( 'rsync', '-a', '--progress', '--exclude', '.wh.*', $from, $to );
     return $?;
 }
 
 sub curl {
     my ( $from, $to, $direction_flag ) = @_;
-    $direction_flag = DOWNLOAD unless defined $direction_flag;
+    $direction_flag = $DOWNLOAD unless defined $direction_flag;
 
     my ( @args, $stdout, $err );
-    if ( $direction_flag == UPLOAD ) {
+    if ( $direction_flag == $UPLOAD ) {
         @args = ( "vyatta-curl-wrapper", "-K-", "-#", "-T", $from, $to );
     }
-    elsif ( $direction_flag == DOWNLOAD ) {
+    elsif ( $direction_flag == $DOWNLOAD ) {
         @args = ( "vyatta-curl-wrapper", "-K-", "-#", "-o", $to, $from );
     }
 
@@ -480,16 +481,15 @@ sub curl {
     }
     if ( length $si ) {
         my $client = Vyatta::Configd::Client->new();
-        die "Unable to connect to the Vyatta Configuration Daemon"
+        die "Unable to connect to the Vyatta Configuration Daemon\n"
           unless defined($client);
         my $oper_state = $client->tree_get_full_hash("interfaces statistics interface $si");
-        my @addrs      = @{ $oper_state->{addresses} }
-          if defined $oper_state->{addresses};
+        my @addrs      = defined $oper_state->{addresses} ? @{ $oper_state->{addresses} } : ();
         foreach my $ip (@addrs) {
             my $address = $ip->{address};
-            $address =~ s/\/.*//;
-            if ( $stdin =~ /interface=/ ) {
-                $stdin =~ s/interface=.*/interface=\"$address\"/;
+            $address =~ s{/.*}{}x;
+            if ( $stdin =~ /interface=/x ) {
+                $stdin =~ s/interface=.*/interface=\"$address\"/x;
             }
             else {
                 $stdin .= "interface=\"$address\"\n";
@@ -511,23 +511,40 @@ sub curl {
         return;
     }
     print "Success.\n";
+    return;
 }
 
 sub y_or_n {
     my ($msg) = @_;
     my $process_client = $ENV{'VYATTA_PROCESS_CLIENT'};
     if ( defined $process_client ) {
-        return 1 if ( $process_client =~ /gui2_rest/ );
+        return 1 if ( $process_client =~ /gui2_rest/x );
     }
     print "$msg (Y/N): ";
     my $input = <>;
-    return 1 if ( $input =~ /Y|y/ );
+    return 1 if ( defined $input && $input =~ /Y|y/x );
     return 0;
 }
 
+# The file details show prints for a file, from ls -lGh
+sub show_file_info {
+    my ( $topdir, $file, $kind ) = @_;
+    print "########### FILE INFO ###########\n";
+    my $filename = conv_file_to_rel( $topdir, $file );
+    print "File Name: $filename\n";
+    print "$kind File: \n";
+    my $lsstr = '';
+    run3( [ 'ls', '-lGh', '--', $file ], \undef, \$lsstr );
+    parsels($lsstr);
+    print "  Description:\t";
+    system( 'file', '-sb', '--', $file );
+    print "\n########### FILE DATA ###########\n";
+    return;
+}
+
 sub show {
-    my ( $topdir, $file ) = conv_file( pop(@_) );
-    my $output = "";
+    my ($arg) = @_;
+    my ( $topdir, $file ) = conv_file($arg);
     if ( $topdir eq 'url' ) {
         print "Cannot show files from a url\n";
         exit 1;
@@ -535,55 +552,37 @@ sub show {
     exit 1 unless check_file_perm( $file, 'r' );
     if ( -d $file ) {
         print "########### DIRECTORY LISTING ###########\n";
-        system("ls -lGph  --group-directories-first $file");
+        system( 'ls', '-lGph', '--group-directories-first', '--', $file );
+        return;
     }
-    elsif ( -T $file ) {
-        print "########### FILE INFO ###########\n";
-        my $filename = conv_file_to_rel( $topdir, $file );
-        print "File Name: $filename\n";
-        print "Text File: \n";
-        my $lsstr = `ls -lGh $file`;
-        parsels($lsstr);
-        print "  Description:\t";
-        system("file -sb $file");
-        print "\n########### FILE DATA ###########\n";
-        system("cat $file");
-    }
-    elsif ( $file =~ /.*\.pcap/ ) {
-        print "########### FILE INFO ###########\n";
-        my $filename = conv_file_to_rel( $topdir, $file );
-        print "File Name: $filename\n";
-        print "Binary File: \n";
-        my $lsstr = `ls -lGh $file`;
-        parsels($lsstr);
-        print "  Description:\t";
-        system("file -sb $file");
-        print "\n########### FILE DATA ###########\n";
-        system("tshark -r $file | less");
-    }
-    elsif ( -B $file ) {
-        print "########### FILE INFO ###########\n";
-        my $filename = conv_file_to_rel( $topdir, $file );
-        print "File Name: $filename\n";
-        print "Binary File: \n";
-        my $lsstr = `ls -lGh $file`;
-        parsels($lsstr);
-        print "  Description:\t";
-        system("file -sb $file");
-        print "\n########### FILE DATA ###########\n";
-        system("hexdump -C $file| less");
-    }
-    else {
+
+    # the file is an argument of the pipeline, never part of its text
+    my %viewer = (
+        'text'   => [ 'cat', '--', $file ],
+        'pcap'   => [ 'sh',  '-c', 'tshark -r "$1" | less',     'sh', $file ],
+        'binary' => [ 'sh',  '-c', 'hexdump -C -- "$1" | less', 'sh', $file ],
+    );
+    my ( $kind, $view ) =
+        -T $file              ? ( 'Text',   'text' )
+      : $file =~ /.*[.]pcap/x ? ( 'Binary', 'pcap' )
+      : -B $file              ? ( 'Binary', 'binary' )
+      :                         ();
+    if ( !$view ) {
         my $filename = conv_file_to_rel( $topdir, $file );
         print "File: $filename not found\n";
+        return;
     }
+    show_file_info( $topdir, $file, $kind );
+    system( @{ $viewer{$view} } );
+    return;
 }
 
 sub parsels {
-    my $lsout = pop(@_);
-    my @ls    = split( ' ', $lsout );
+    my ($lsout) = @_;
+    my @ls = split( ' ', $lsout );
     print "  Permissions: $ls[0]\n";
     print "  Owner:\t$ls[2]\n";
     print "  Size:\t\t$ls[3]\n";
     print "  Modified:\t$ls[4] $ls[5] $ls[6]\n";
+    return;
 }
