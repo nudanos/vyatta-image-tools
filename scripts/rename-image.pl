@@ -27,8 +27,8 @@ use Sys::Syslog qw/:standard :macros/;
 use lib "/opt/vyatta/share/perl5/";
 use Vyatta::Live;
 
-my $live_image_root = get_live_image_root();
-my $UNION_BOOT = "$live_image_root/boot";
+my $live_image_root   = get_live_image_root();
+my $UNION_BOOT        = "$live_image_root/boot";
 my $XEN_DEFAULT_IMAGE = "$UNION_BOOT/%%default_image";
 
 my $old_name;
@@ -37,61 +37,65 @@ my $new_name;
 GetOptions(
     'old_name:s' => \$old_name,
     'new_name:s' => \$new_name,
-    );
-    
-if (!defined($old_name) || !defined($new_name)) {
+);
+
+if ( !defined($old_name) || !defined($new_name) ) {
     printf("Must specify both old and new name.\n");
     exit 1;
 }
 
 my $image_path = "$live_image_root/boot";
 
-if (! -e "$image_path") {
+if ( !-e "$image_path" ) {
+
     # must be running on old non-image installed system
     $image_path = "";
 }
 
-if (! -e "$image_path/$old_name") {
+if ( !-e "$image_path/$old_name" ) {
     printf("Old name $old_name does not exist.\n");
     exit 1;
 }
 
-if (("$new_name" eq "Old-non-image-installation") ||
-    ("$new_name" eq "grub") ||
-    ("$new_name" =~ /^initrd/) ||
-    ("$new_name" =~ /^vmlinuz/) ||
-    ("$new_name" =~ /^System\.map/) ||
-    ("$new_name" =~ /^config-/) ||
-    ("$new_name" =~ /^%%/)) {
+if (   ( "$new_name" eq "Old-non-image-installation" )
+    || ( "$new_name" eq "grub" )
+    || ( "$new_name" =~ /^initrd/ )
+    || ( "$new_name" =~ /^vmlinuz/ )
+    || ( "$new_name" =~ /^System\.map/ )
+    || ( "$new_name" =~ /^config-/ )
+    || ( "$new_name" =~ /^%%/ ) )
+{
     printf("Can't use reserved image name.\n");
     exit 1;
 }
 
-my $cmdline=`cat /proc/cmdline`;
+my $cmdline = `cat /proc/cmdline`;
 my $cur_name;
-($cur_name, undef) = split(' ', $cmdline);
-if ($cur_name =~ s/BOOT_IMAGE=\/boot\///) {
+( $cur_name, undef ) = split( ' ', $cmdline );
+if ( $cur_name =~ s/BOOT_IMAGE=\/boot\/// ) {
     $cur_name =~ s/\/vmlinuz.*//;
-} else {
+}
+else {
     # Boot command line is not formatted as it would be for a system
     # booted via grub2 with union mounted root filesystem.  Another
     # possibility is that it the system is Xen booted via pygrub.
     #
-    if (-l $XEN_DEFAULT_IMAGE) {
-	# On Xen/pygrub systems, we figure out the running version by
-	# looking at the bind mount of /boot.
-	$cur_name = `mount | awk '/on \\/boot / { print \$1 }'`;
-	$cur_name =~ s?$live_image_root/boot/??;
-	chomp($cur_name);
+    if ( -l $XEN_DEFAULT_IMAGE ) {
+
+        # On Xen/pygrub systems, we figure out the running version by
+        # looking at the bind mount of /boot.
+        $cur_name = `mount | awk '/on \\/boot / { print \$1 }'`;
+        $cur_name =~ s?$live_image_root/boot/??;
+        chomp($cur_name);
     }
 }
 
-if ($old_name eq $cur_name) {
+if ( $old_name eq $cur_name ) {
     printf("Can't re-name the running image.\n");
     exit 1;
 }
 
-if (-e "$image_path/$new_name") {
+if ( -e "$image_path/$new_name" ) {
     printf("New name $new_name already exists.\n");
     exit 1;
 }
@@ -100,10 +104,10 @@ printf("Renaming image $old_name to $new_name.\n");
 
 my $tmpfh;
 my $tmpfilename;
-($tmpfh, $tmpfilename) = tempfile();
+( $tmpfh, $tmpfilename ) = tempfile();
 
-open (my $grubfh, '<', "${image_path}/grub/grub.cfg")
-    or die "Can't open grub file.\n";
+open( my $grubfh, '<', "${image_path}/grub/grub.cfg" )
+  or die "Can't open grub file.\n";
 
 # This is sensitive to the format of menu entries and boot paths
 # in the grub config file.
@@ -120,7 +124,7 @@ my $line;
 
 # old_name is likely to have regexp special characters in it
 my $safe_old_name = quotemeta($old_name);
-while ($line = <$grubfh>) {
+while ( $line = <$grubfh> ) {
     $line =~ s/\/boot\/$safe_old_name\//\/boot\/$new_name\//g;
     $line =~ s/\/boot\/$safe_old_name /\/boot\/$new_name /g;
     $line =~ s/Vyatta $safe_old_name /Vyatta $new_name /;
@@ -128,18 +132,18 @@ while ($line = <$grubfh>) {
     $line =~ s/Lost password change $safe_old_name /Lost password change $new_name /;
     $line =~ s/Configuration Recovery $safe_old_name /Configuration Recovery $new_name /;
     $line =~ s/Configuration Recovery for above image /Configuration Recovery $new_name /;
-    printf($tmpfh $line);
+    printf( $tmpfh $line );
 }
 
 close($tmpfh) or die "Close temp grub file failed: $!\n";
 close($grubfh);
 
-move("$image_path/$old_name", "$image_path/$new_name")
-    or die "rename $old_name to $new_name failed: $!\n";
+move( "$image_path/$old_name", "$image_path/$new_name" )
+  or die "rename $old_name to $new_name failed: $!\n";
 
-copy($tmpfilename, "$image_path/grub/grub.cfg")
-    or die "copy $tmpfilename to grub.cfg failed: $!\n";
+copy( $tmpfilename, "$image_path/grub/grub.cfg" )
+  or die "copy $tmpfilename to grub.cfg failed: $!\n";
 
-syslog("warning", "System image $old_name has been renamed $new_name");
+syslog( "warning", "System image $old_name has been renamed $new_name" );
 
 printf("Done.\n");

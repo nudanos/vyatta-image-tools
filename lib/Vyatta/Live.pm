@@ -21,8 +21,8 @@ use warnings;
 use File::Basename;
 use File::Copy;
 use File::Slurp qw/ edit_file_lines /;
-use File::Sync qw / fsync /;
-use File::Temp qw/ :mktemp tempdir /;
+use File::Sync  qw / fsync /;
+use File::Temp  qw/ :mktemp tempdir /;
 use Sys::Syslog;
 use Template;
 use Try::Tiny;
@@ -61,9 +61,7 @@ sub call_install_functions {
 sub what_is_mounted_on {
     my ($path) = @_;
 
-    return
-      split( / /,
-        Vyatta::Live->call_install_functions( "what_is_mounted_on " . $path ) );
+    return split( / /, Vyatta::Live->call_install_functions( "what_is_mounted_on " . $path ) );
 }
 
 sub get_live_image_root {
@@ -79,8 +77,7 @@ sub get_persistence_label {
 }
 
 sub get_persistence_path_from_rootfs {
-    return Vyatta::Live->call_install_functions(
-        "get_image_persistence_path_from_rootfs", @_ );
+    return Vyatta::Live->call_install_functions( "get_image_persistence_path_from_rootfs", @_ );
 }
 
 sub parse_grub_cfg {
@@ -214,7 +211,7 @@ sub open_grub_config {
 }
 
 sub read_grub_config {
-    my $fd = open_grub_config();
+    my $fd       = open_grub_config();
     my $cfg_data = do { local $/; <$fd>; };
     close($fd);
     return $cfg_data;
@@ -239,8 +236,8 @@ sub get_running_image {
     $gconfig = parse_grub_cfg( read_grub_config(), get_kernel_command_line() )
       if !defined($gconfig);
     my ($running_image) =
-      grep { defined($_->{'running_vers'}) && $_->{'running_vers'} == 1 }
-        @{ $gconfig->{'entries'} };
+      grep { defined( $_->{'running_vers'} ) && $_->{'running_vers'} == 1 }
+      @{ $gconfig->{'entries'} };
     return $running_image->{'ver'};
 }
 
@@ -277,8 +274,7 @@ sub get_version_from_dpkg {
 
 sub get_image_path {
     my ($image_name) = @_;
-    return get_persistence_path_from_rootfs( $image_name,
-        get_live_image_root() );
+    return get_persistence_path_from_rootfs( $image_name, get_live_image_root() );
 }
 
 sub get_image_version {
@@ -306,8 +302,7 @@ sub get_image_version {
         my $squash_mount_path = tempdir( $TEMPLATE, CLEANUP => 1 )
           or die "Can't create temp dir for squash mount: $!";
 
-        system( "mount", "-o", "loop,ro", "-t", "squashfs", $squash_file,
-            $squash_mount_path );
+        system( "mount", "-o", "loop,ro", "-t", "squashfs", $squash_file, $squash_mount_path );
 
         my $vers = get_version_from_dpkg($squash_mount_path);
 
@@ -375,16 +370,12 @@ sub get_image_storage {
     my ($total) = split( ' ', `du -s -b $imagedir/$image` );
     $output->{'total'} = $total;
 
-    my ($read_only) = split(
-        ' ',
-`du -s -b $imagedir/$image --exclude=live-rw --exclude=persistence 2>/dev/null`
-    );
+    my ($read_only) =
+      split( ' ', `du -s -b $imagedir/$image --exclude=live-rw --exclude=persistence 2>/dev/null` );
     $output->{'read-only'} = $read_only;
 
-    my ($read_write) = split(
-        ' ',
-`du -s -b $imagedir/$image/live-rw $imagedir/$image/persistence 2>/dev/null`
-    );
+    my ($read_write) =
+      split( ' ', `du -s -b $imagedir/$image/live-rw $imagedir/$image/persistence 2>/dev/null` );
     $output->{'read-write'} = $read_write;
 
     return $output;
@@ -393,7 +384,7 @@ sub get_image_storage {
 sub set_default_boot_image {
     my ( $image_name, $gref, $terminal ) = @_;
 
-    my $grub_cfg      = get_grub_config_filename();
+    my $grub_cfg = get_grub_config_filename();
 
     $gref = parse_grub_cfg( read_grub_config(), get_kernel_command_line() )
       if !defined($gref);
@@ -403,8 +394,7 @@ sub set_default_boot_image {
 
     check_image_exists( $image_name, $gref );
 
-    my $def_index =
-      get_index_of_matching_image( $gref, $image_name, $terminal );
+    my $def_index = get_index_of_matching_image( $gref, $image_name, $terminal );
 
     # look for an the image with a non-matching terminal if we didn't find one
     # with a matching terminal
@@ -416,11 +406,10 @@ sub set_default_boot_image {
 
     set_default_grub_image( $grub_cfg, $def_index );
 
-	my $default_image = get_default_boot_image();
+    my $default_image = get_default_boot_image();
     set_default_xen_image( $default_image, $image_name );
 
-    syslog( "warning|local3",
-        "Default boot image has been changed from %s to %s'",
+    syslog( "warning|local3", "Default boot image has been changed from %s to %s'",
         $default_image, $image_name );
 }
 
@@ -436,7 +425,8 @@ sub do_fsync {
         if ( open( my $fd, '<', $f ) ) {
             fsync($fd);
             close($fd);
-        } else {
+        }
+        else {
             syslog( "warning|local3", "Failed to flush $f to disk" );
         }
     }
@@ -455,10 +445,10 @@ sub set_default_grub_image {
     # default version.
     try {
         my $pat = qr/^set default=.*$/;
-        edit_file_lines( sub { s/$pat/set default=$def_index/ },
-            $grub_cfg, { atomic => 1 } );
+        edit_file_lines( sub { s/$pat/set default=$def_index/ }, $grub_cfg, { atomic => 1 } );
         flush_grub_cfg($grub_cfg);
-    } catch {
+    }
+    catch {
         die "Failed to set the default boot image: $_\n"
     };
 }
@@ -514,8 +504,7 @@ sub set_default_xen_image {
         move( $backup_symlink, $XEN_DEFAULT_IMAGE );
         syslog(
             "warning|local3",
-            "Default boot image attempt to change from"
-              . " %s to %s failed: cant back up symlink",
+            "Default boot image attempt to change from" . " %s to %s failed: cant back up symlink",
             $default_image,
             $image_name
         );
@@ -620,8 +609,7 @@ sub delete_image {
     $gconfig =
       parse_grub_cfg( read_grub_config(), get_kernel_command_line() );
 
-    my $new_default =
-      ( $image_name eq $default_image ) ? $running_image : $default_image;
+    my $new_default = ( $image_name eq $default_image ) ? $running_image : $default_image;
     set_default_boot_image( $new_default, $gconfig );
 
     syslog( "warning|local3", "System Image $image_name has been deleted" );
@@ -630,6 +618,7 @@ sub delete_image {
 sub is_installed_system {
     system('grep -q vyatta-union /proc/cmdline');
     my $ret = $? >> 8;
+
     # Bash to perl exit code conversion...
     if ( $ret == 0 ) {
         return 1;

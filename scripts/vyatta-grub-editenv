@@ -36,7 +36,8 @@ sub grub_editenv {
     }
     push( @{$cmd}, $envfile, $editcmd, @vars );
     run3( $cmd, \undef, \$s_out, \$s_err );
-    die( __FILE__,
+    die(
+        __FILE__,
         ': Failed command: ',
         join( q{ }, @{$cmd} ),
         "\n",
@@ -50,30 +51,31 @@ sub check_args {
     die __FILE__, ": No action specified\n" if not defined($action);
     if ( $action eq 'list' ) {
         die __FILE__,
-          ": Too many argument for grub-editenv $action: expected 0 got ",
-          scalar @ARGV, "\n"
+          ": Too many argument for grub-editenv $action: expected 0 got ", scalar @ARGV, "\n"
           if @ARGV;
-    } elsif ( $action eq 'set' || $action eq 'unset' ) {
+    }
+    elsif ( $action eq 'set' || $action eq 'unset' ) {
         die __FILE__, ": no argument for grub-editenv $action\n" if not @ARGV;
-    } else {
+    }
+    else {
         die __FILE__, ": Invalid command $action for grub-editenv\n";
     }
 
     my $target = 0;
     for my $img ( $global, $running, $image ) {
-	if ($img) {
-		$target++;
-	}
+        if ($img) {
+            $target++;
+        }
     }
-    die __FILE__,
-      ": Invalid argument: must specify exactly one of global, running, or image\n"
+    die __FILE__, ": Invalid argument: must specify exactly one of global, running, or image\n"
       if $target != 1;
     foreach my $arg (@ARGV) {
         my ( $name, $val ) = split( /=/s, $arg, 2 );
         if ( $action eq 'set' ) {
             die __FILE__, ": Invalid $action argument $name"
               if not defined($val);
-        } elsif ( $action eq 'unset' ) {
+        }
+        elsif ( $action eq 'unset' ) {
             die __FILE__, ": Invalid $action argument $name" if defined($val);
         }
     }
@@ -90,7 +92,8 @@ GetOptions(
 check_args();
 if ($global) {
     $image = undef;
-} elsif ($running) {
+}
+elsif ($running) {
     $image = get_running_image();
 }
 

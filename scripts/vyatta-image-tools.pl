@@ -67,9 +67,7 @@ if (@copy) {
     # 'security ssh-client source-interface'
     if ( !length $si ) {
         my $client = Vyatta::Configd::Client->new();
-        my $ret    = eval {
-            $client->tree_get_hash("security ssh-client source-interface");
-        };
+        my $ret    = eval { $client->tree_get_hash("security ssh-client source-interface"); };
         $si = $ret->{'source-interface'} if defined $ret->{'source-interface'};
     }
     copy(@copy);
@@ -110,32 +108,41 @@ sub conv_file {
     if ( $file =~ /(.+?):\/\/(.*)/ ) {
         $topdir = $1;
         $file   = $2;
-    } elsif ( $file =~ /^\// ) {
+    }
+    elsif ( $file =~ /^\// ) {
         $topdir = "running";
-    } else {
+    }
+    else {
         print "File: $filein not found \n";
         exit 1;
     }
     if ( $topdir eq "running" ) {
         $file = "/$file";
-    } elsif ( lc($topdir) eq 'disk-install' ) {
+    }
+    elsif ( lc($topdir) eq 'disk-install' ) {
         $file = "$live_image_root/$file";
-    } elsif ( lc($topdir) eq 'tftp' ) {
+    }
+    elsif ( lc($topdir) eq 'tftp' ) {
         $file   = $filein;
         $topdir = 'url';
-    } elsif ( lc($topdir) eq 'http' ) {
+    }
+    elsif ( lc($topdir) eq 'http' ) {
         $file   = $filein;
         $topdir = 'url';
-    } elsif ( lc($topdir) eq 'ftp' ) {
+    }
+    elsif ( lc($topdir) eq 'ftp' ) {
         $file   = $filein;
         $topdir = 'url';
-    } elsif ( lc($topdir) eq 'scp' ) {
+    }
+    elsif ( lc($topdir) eq 'scp' ) {
         $file   = $filein;
         $topdir = 'url';
-    } elsif ( lc($topdir) eq 'sftp' ) {
+    }
+    elsif ( lc($topdir) eq 'sftp' ) {
         $file   = $filein;
         $topdir = 'url';
-    } else {
+    }
+    else {
         foreach (qw(live-rw persistence persistence/rw)) {
             print "$live_image_root/boot/$topdir/$_ \n";
 
@@ -160,11 +167,13 @@ sub conv_file_to_rel {
     my ( $topdir, $filename ) = @_;
     if ( $topdir eq "running" ) {
         $filename =~ s?/?$topdir://?;
-    } elsif ( $topdir eq "disk-install" ) {
+    }
+    elsif ( $topdir eq "disk-install" ) {
         $filename =~ s?$live_image_root/?$topdir://?;
-    } else {
+    }
+    else {
         $filename =~
-s?$live_image_root/boot/$topdir/(live-rw|persistence|persistence/rw)/?$topdir://?;
+          s?$live_image_root/boot/$topdir/(live-rw|persistence|persistence/rw)/?$topdir://?;
     }
     return $filename;
 }
@@ -183,7 +192,8 @@ sub delete_file {
             system("rm -rf $file");
             print("Directory erased\n");
         }
-    } elsif ( -f $file ) {
+    }
+    elsif ( -f $file ) {
         my $print_file = conv_file_to_rel( $topdir, $file );
         if ( y_or_n("Do you want to erase the $print_file file?") ) {
             system("rm -rf $file");
@@ -241,7 +251,7 @@ sub ssh_keys_manage {
 
     my $key_req = join( ",", @SSH_KEY_TYPES );
     my @key_entries =
-qx(${vrfcmd}/usr/bin/ssh-keyscan -p '$port' -H -t $key_req '$host' 2>/dev/null)
+      qx(${vrfcmd}/usr/bin/ssh-keyscan -p '$port' -H -t $key_req '$host' 2>/dev/null)
       or return;
     chomp(@key_entries);
 
@@ -276,9 +286,7 @@ qx(${vrfcmd}/usr/bin/ssh-keyscan -p '$port' -H -t $key_req '$host' 2>/dev/null)
 
         my $host_to_delete;
         if ( -f $known_hosts_file ) {
-            $host_to_delete =
-              ssh_get_host_to_delete( $known_hosts_file, $host,
-                $stored_fp_str );
+            $host_to_delete = ssh_get_host_to_delete( $known_hosts_file, $host, $stored_fp_str );
         }
 
         # The entry in SSH_KNOWN_HOSTS was changed under us
@@ -296,7 +304,8 @@ qx(${vrfcmd}/usr/bin/ssh-keyscan -p '$port' -H -t $key_req '$host' 2>/dev/null)
         $cfg_client->commit("User accepted updated ssh host key for '$host'");
         $cfg_client->session_teardown();
 
-    } else {
+    }
+    else {
 
         (
             my $msg = qq{
@@ -326,18 +335,21 @@ sub url_copy {
     if ( $t_topdir eq 'url' && $f_topdir eq 'url' ) {
         print "Cannot copy a url to a url\n";
         exit 1;
-    } elsif ( $t_topdir eq 'url' ) {
+    }
+    elsif ( $t_topdir eq 'url' ) {
         exit 1 unless check_file_perm( $from, 'r' );
         if ( -d $from ) {
             print "Cannot upload an entire directory to url\n";
             exit 1;
-        } elsif ( $to =~ /http/ ) {
+        }
+        elsif ( $to =~ /http/ ) {
             print "Cannot upload to http url\n";
             exit 1;
         }
         ssh_keys_manage($to);
         curl( $from, $to, UPLOAD );
-    } elsif ( $f_topdir eq 'url' ) {
+    }
+    elsif ( $f_topdir eq 'url' ) {
         if ( -d $to ) {
             $from =~ /.*\/(.*)/;
             my $from_file = $1;
@@ -373,15 +385,18 @@ sub copy {
     if ( -d $from && -e $to && !( -d $to ) ) {
         print "Cannot copy a directory to a file.\n";
         return 1;
-    } elsif ( -f $to || ( -d $to && -f "$to/$from_file" ) ) {
+    }
+    elsif ( -f $to || ( -d $to && -f "$to/$from_file" ) ) {
         if ( y_or_n("This file exists; overwrite if needed?") ) {
             rsync( $from, $to );
         }
-    } elsif ( -d $to && -d $from ) {
+    }
+    elsif ( -d $to && -d $from ) {
         if ( y_or_n("This directory exists; would you like to merge?") ) {
             rsync( $from, $to );
         }
-    } else {
+    }
+    else {
         rsync( $from, $to );
     }
 }
@@ -446,7 +461,8 @@ sub curl {
     my ( @args, $stdout, $err );
     if ( $direction_flag == UPLOAD ) {
         @args = ( "vyatta-curl-wrapper", "-K-", "-#", "-T", $from, $to );
-    } elsif ( $direction_flag == DOWNLOAD ) {
+    }
+    elsif ( $direction_flag == DOWNLOAD ) {
         @args = ( "vyatta-curl-wrapper", "-K-", "-#", "-o", $to, $from );
     }
 
@@ -455,7 +471,8 @@ sub curl {
     my $stdin = '';
     if ( length $u && length $p ) {
         $stdin = "user=\"$u:$p\"\n";
-    } elsif ( length $u ) {
+    }
+    elsif ( length $u ) {
         $stdin = "user=\"$u:\"\n";
         print
 "SSH public-key based authentication not yet implemented. Please provide a plaintext password.\n";
@@ -465,16 +482,16 @@ sub curl {
         my $client = Vyatta::Configd::Client->new();
         die "Unable to connect to the Vyatta Configuration Daemon"
           unless defined($client);
-        my $oper_state =
-          $client->tree_get_full_hash("interfaces statistics interface $si");
-        my @addrs = @{ $oper_state->{addresses} }
+        my $oper_state = $client->tree_get_full_hash("interfaces statistics interface $si");
+        my @addrs      = @{ $oper_state->{addresses} }
           if defined $oper_state->{addresses};
         foreach my $ip (@addrs) {
             my $address = $ip->{address};
             $address =~ s/\/.*//;
             if ( $stdin =~ /interface=/ ) {
                 $stdin =~ s/interface=.*/interface=\"$address\"/;
-            } else {
+            }
+            else {
                 $stdin .= "interface=\"$address\"\n";
             }
             print "Using source-interface address: $address\n";
@@ -519,7 +536,8 @@ sub show {
     if ( -d $file ) {
         print "########### DIRECTORY LISTING ###########\n";
         system("ls -lGph  --group-directories-first $file");
-    } elsif ( -T $file ) {
+    }
+    elsif ( -T $file ) {
         print "########### FILE INFO ###########\n";
         my $filename = conv_file_to_rel( $topdir, $file );
         print "File Name: $filename\n";
@@ -530,7 +548,8 @@ sub show {
         system("file -sb $file");
         print "\n########### FILE DATA ###########\n";
         system("cat $file");
-    } elsif ( $file =~ /.*\.pcap/ ) {
+    }
+    elsif ( $file =~ /.*\.pcap/ ) {
         print "########### FILE INFO ###########\n";
         my $filename = conv_file_to_rel( $topdir, $file );
         print "File Name: $filename\n";
@@ -541,7 +560,8 @@ sub show {
         system("file -sb $file");
         print "\n########### FILE DATA ###########\n";
         system("tshark -r $file | less");
-    } elsif ( -B $file ) {
+    }
+    elsif ( -B $file ) {
         print "########### FILE INFO ###########\n";
         my $filename = conv_file_to_rel( $topdir, $file );
         print "File Name: $filename\n";
@@ -552,7 +572,8 @@ sub show {
         system("file -sb $file");
         print "\n########### FILE DATA ###########\n";
         system("hexdump -C $file| less");
-    } else {
+    }
+    else {
         my $filename = conv_file_to_rel( $topdir, $file );
         print "File: $filename not found\n";
     }
@@ -560,7 +581,7 @@ sub show {
 
 sub parsels {
     my $lsout = pop(@_);
-    my @ls = split( ' ', $lsout );
+    my @ls    = split( ' ', $lsout );
     print "  Permissions: $ls[0]\n";
     print "  Owner:\t$ls[2]\n";
     print "  Size:\t\t$ls[3]\n";

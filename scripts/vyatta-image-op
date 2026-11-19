@@ -1,7 +1,6 @@
 #!/usr/bin/perl
 # SPDX-License-Identifier: GPL-2.0-only
 
-
 # **** License ****
 #
 # Copyright (c) 2019-2020, AT&T Intellectual Property.
@@ -25,12 +24,8 @@ sub show_storage {
     my $client = Vyatta::Configd::Client->new();
     my $tree   = $client->tree_get_full_hash("system-image");
 
-    printf(
-"Image name                        Read-Only   Read-Write        Total\n"
-    );
-    printf(
-"------------------------------ ------------ ------------ ------------\n"
-    );
+    printf("Image name                        Read-Only   Read-Write        Total\n");
+    printf("------------------------------ ------------ ------------ ------------\n");
 
     foreach my $image ( @{ $tree->{'system-image'}->{'installed-images'} } ) {
         printf(
@@ -64,9 +59,9 @@ sub print_images {
             "  %2d: %s%s%s%s\n",
             $index + 1,
             $image->{'name'},
-            $show_version ? " [" . $image->{'version'} . "]" : "",
-            $image->{'name'} eq $default_boot ? " (default boot)"  : "",
-            $image->{'name'} eq $running      ? " (running image)" : "",
+            $show_version                     ? " [" . $image->{'version'} . "]" : "",
+            $image->{'name'} eq $default_boot ? " (default boot)"                : "",
+            $image->{'name'} eq $running      ? " (running image)"               : "",
         );
         $index = $index + 1;
     }
@@ -116,8 +111,8 @@ sub prompt_user_for_image {
 
 sub check_image_exists {
     my ( $tree, $image_name ) = @_;
-    my ($image) = grep { $_->{'name'} eq $image_name }
-      @{ $tree->{'system-image'}->{'installed-images'} };
+    my ($image) =
+      grep { $_->{'name'} eq $image_name } @{ $tree->{'system-image'}->{'installed-images'} };
     die "Image \"$image_name\" not found\n" if !defined($image);
 }
 
@@ -147,8 +142,7 @@ sub delete_image_name {
 
     print "Deleting the \"$image_name\" image...\n";
 
-    $client->call_rpc_hash( "vyatta-image-v1", "delete-image",
-        { 'name' => $image_name } );
+    $client->call_rpc_hash( "vyatta-image-v1", "delete-image", { 'name' => $image_name } );
 
     print "Done\n";
 }
@@ -255,8 +249,7 @@ sub list_md_disks_cmd {
 
 sub show_log_cmd {
     my ($image) = $ARGV[0];
-    my $output =
-      qx(/opt/vyatta/sbin/vyatta-live-image get_image_persistence_path $image);
+    my $output = qx(/opt/vyatta/sbin/vyatta-live-image get_image_persistence_path $image);
     die "$image: No such image" if $? != 0;
 
     $output = qx(echo "$output" | xargs -I'{}' -r journalctl -a --no-pager --root='{}');
@@ -265,19 +258,16 @@ sub show_log_cmd {
 
 sub show_log_dir_cmd {
     my ($image) = $ARGV[0];
-    my $output =
-      qx(/opt/vyatta/sbin/vyatta-live-image get_image_persistence_path $image);
+    my $output = qx(/opt/vyatta/sbin/vyatta-live-image get_image_persistence_path $image);
     die "$image: No such image" if $? != 0;
 
-    $output =
-      qx(echo "$output" | xargs -I'{}' -r ls '{}'/var/log/$ENV{'LOGNAME'});
+    $output = qx(echo "$output" | xargs -I'{}' -r ls '{}'/var/log/$ENV{'LOGNAME'});
     print "$output" if $? == 0;
 }
 
 sub show_log_file_cmd {
     my ( $image, $file ) = @ARGV;
-    my $output =
-      qx(/opt/vyatta/sbin/vyatta-live-image get_image_persistence_path $image);
+    my $output = qx(/opt/vyatta/sbin/vyatta-live-image get_image_persistence_path $image);
     die "$image: No such image" if $? != 0;
 
     $output =
@@ -287,16 +277,13 @@ qx(echo "$output" | xargs -I'{}' -r vyatta-show-log-file "$file" '{}'/var/log/$E
 
 sub show_log_tail_cmd {
     my ( $image, $len ) = @ARGV;
-    my $output =
-      qx(/opt/vyatta/sbin/vyatta-live-image get_image_persistence_path $image);
+    my $output = qx(/opt/vyatta/sbin/vyatta-live-image get_image_persistence_path $image);
     die "$image: No such image" if $? != 0;
 
-    $output =
-      qx(echo "$output" | xargs -I'{}' -r journalctl -a --no-pager -n "$len" --root='{}')
+    $output = qx(echo "$output" | xargs -I'{}' -r journalctl -a --no-pager -n "$len" --root='{}')
       if defined $len;
 
-    $output =
-      qx(echo "$output" | xargs -I'{}' -r journalctl -a --no-pager -n --root='{}')
+    $output = qx(echo "$output" | xargs -I'{}' -r journalctl -a --no-pager -n --root='{}')
       if !defined $len;
 
     print "$output" if $? == 0;
@@ -304,12 +291,10 @@ sub show_log_tail_cmd {
 
 sub list_log_files_cmd {
     my ($image) = $ARGV[0];
-    my $output =
-      qx(/opt/vyatta/sbin/vyatta-live-image get_image_persistence_path $image);
+    my $output = qx(/opt/vyatta/sbin/vyatta-live-image get_image_persistence_path $image);
     die "$image: No such image" if $? != 0;
 
-    $output =
-      qx(echo "$output" | xargs -I'{}' -r ls '{}'/var/log/$ENV{'LOGNAME'});
+    $output = qx(echo "$output" | xargs -I'{}' -r ls '{}'/var/log/$ENV{'LOGNAME'});
 
     print "$output" if $? == 0;
 }
@@ -346,21 +331,21 @@ sub call_action_by_name {
 }
 
 my %actions = (
-    "show-storage"           => \&show_storage,
-    "show-versions"          => \&show_versions,
-    "show-images"            => \&show_images,
-    "list-images"            => \&list_images_cmd,
-    "delete-image-prompt"    => \&delete_image_prompt,
-    "delete-image"           => \&delete_image_cmd,
-    "select-image-prompt"    => \&select_image_prompt,
-    "select-image"           => \&select_image_cmd,
-    "list-md"                => \&list_md_cmd,
-    "list-md-disks"          => \&list_md_disks_cmd,
-    "list-log-files"         => \&list_log_files_cmd,
-    "show-log"               => \&show_log_cmd,
-    "show-log-directory"     => \&show_log_dir_cmd,
-    "show-log-file"          => \&show_log_file_cmd,
-    "show-log-tail"          => \&show_log_tail_cmd,
-    "vyatta-autoinstall"     => \&autoinstall_cmd,
+    "show-storage"        => \&show_storage,
+    "show-versions"       => \&show_versions,
+    "show-images"         => \&show_images,
+    "list-images"         => \&list_images_cmd,
+    "delete-image-prompt" => \&delete_image_prompt,
+    "delete-image"        => \&delete_image_cmd,
+    "select-image-prompt" => \&select_image_prompt,
+    "select-image"        => \&select_image_cmd,
+    "list-md"             => \&list_md_cmd,
+    "list-md-disks"       => \&list_md_disks_cmd,
+    "list-log-files"      => \&list_log_files_cmd,
+    "show-log"            => \&show_log_cmd,
+    "show-log-directory"  => \&show_log_dir_cmd,
+    "show-log-file"       => \&show_log_file_cmd,
+    "show-log-tail"       => \&show_log_tail_cmd,
+    "vyatta-autoinstall"  => \&autoinstall_cmd,
 );
 call_action_by_name( \%actions, basename($0), "action", "" );

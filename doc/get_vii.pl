@@ -26,8 +26,8 @@ sub read_vii_database {
 
 sub parse_vii {
     my ($vii_data) = @_;
-    my @vii = split( "\n", $vii_data );
-    my @vii_vars = ();
+    my @vii        = split( "\n", $vii_data );
+    my @vii_vars   = ();
 
     foreach (@vii) {
         if (/^#/) {

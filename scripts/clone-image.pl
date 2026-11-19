@@ -49,7 +49,7 @@ use Getopt::Long;
 use File::Temp qw/ tempfile tempdir /;
 use File::Copy;
 use File::Path;
-use IPC::Run qw(run);
+use IPC::Run     qw(run);
 use Scalar::Util qw (looks_like_number);
 use Term::ReadKey;
 use English;
@@ -59,9 +59,9 @@ use lib '/opt/vyatta/share/perl5';
 use Vyatta::Live;
 use Vyatta::RestClient;
 
-my ( $old_name, $new_name, $remote, $no_rw, $ro_size, $rw_size );
+my ( $old_name,    $new_name,    $remote, $no_rw, $ro_size, $rw_size );
 my ( $remote_host, $remote_user, $remote_passwd );
-my ( $cli, $err_code, $err, $output );
+my ( $cli,         $err_code,    $err, $output );
 my $image_path  = get_live_image_root() . '/boot';
 my $persistence = get_persistence_label();
 
@@ -126,9 +126,7 @@ sub get_remote_size {
     if ( defined($err) ) {
         printf("Connection failed: $err\n");
         if ( $err_code == 500 ) {
-            printf(
-"Make sure the remote router is up, is reachable, and has the Vyatta\n"
-            );
+            printf("Make sure the remote router is up, is reachable, and has the Vyatta\n");
             printf("remote management service enabled.\n");
         }
         exit 1;
@@ -141,8 +139,7 @@ sub get_remote_size {
     printf("\n");
     chomp($remote_passwd);
 
-    ( $err_code, $err ) =
-      $cli->auth( $remote_host, $remote_user, $remote_passwd );
+    ( $err_code, $err ) = $cli->auth( $remote_host, $remote_user, $remote_passwd );
     !defined($err)
       or err_exit("Authentication failed: $err");
 
@@ -193,9 +190,9 @@ sub copy_image {
     }
 
     if ( defined($no_rw) ) {
-        @find_expr =
-          ( qw(find . -path), "./$persistence", qw(-prune -o -print0) );
-    } else {
+        @find_expr = ( qw(find . -path), "./$persistence", qw(-prune -o -print0) );
+    }
+    else {
         @find_expr = qw(find . -print0);
     }
     run( [ 'mkdir', $new_path ] );
@@ -205,11 +202,12 @@ sub copy_image {
 
     if ( defined($remote) ) {
         printf("Copying remote image $old_name to $new_name...\n");
-        my $find_str = join( ' ', ( map { qq('$_') } @find_expr ) );
+        my $find_str   = join( ' ', ( map { qq('$_') } @find_expr ) );
         my $remote_cmd = "cd '$old_path' ; $find_str | cpio -o0";
-        $result = run( [ 'ssh', @port_arg, $remote, $remote_cmd ],
-            '|', [ 'cpio', '-D', $new_path, '-i' ] );
-    } else {
+        $result =
+          run( [ 'ssh', @port_arg, $remote, $remote_cmd ], '|', [ 'cpio', '-D', $new_path, '-i' ] );
+    }
+    else {
         printf("Copying local image $old_name to $new_name...\n");
         my $cwd = cwd();
         chdir($old_path);
@@ -273,10 +271,8 @@ if ( -e "$image_path/$new_name" ) {
 }
 
 # Check disk space
-my $space_avail = run_filter(
-    [ 'df', '-k', '--output=avail', $image_path ],
-    sub { return ( split( '\n', $_[0] ) )[-1]; }
-);
+my $space_avail = run_filter( [ 'df', '-k', '--output=avail', $image_path ],
+    sub { return ( split( '\n', $_[0] ) )[-1]; } );
 
 my $space_needed;
 if ( defined($remote) ) {
@@ -284,12 +280,11 @@ if ( defined($remote) ) {
     ( $ro_size, $rw_size ) = get_remote_size($remote);
     defined($ro_size) && defined($rw_size)
       or err_exit("Unable to determine size of remote image $old_name");
-} else {
+}
+else {
     my $du_filter = sub { return ( split( ' ', $_[0] ) )[0]; };
-    $ro_size =
-      run_filter( [ 'du', '-s', "$image_path/$old_name" ], $du_filter );
-    $rw_size = run_filter( [ 'du', '-s', "$image_path/$old_name/$persistence" ],
-        $du_filter );
+    $ro_size = run_filter( [ 'du', '-s', "$image_path/$old_name" ],              $du_filter );
+    $rw_size = run_filter( [ 'du', '-s', "$image_path/$old_name/$persistence" ], $du_filter );
     if ( !looks_like_number($ro_size) || !looks_like_number($rw_size) ) {
         err_exit("Unable to determine disk space for $image_path/$old_name\n");
     }
@@ -298,7 +293,8 @@ if ( defined($remote) ) {
 
 if ( defined($no_rw) ) {
     $space_needed = $ro_size;
-} else {
+}
+else {
     $space_needed = $ro_size + $rw_size;
 }
 
@@ -326,7 +322,8 @@ if ( defined($remote) ) {
 my $message = "New system image $new_name has been cloned from $old_name";
 if ( defined($no_rw) ) {
     $message .= " without read-write directory.";
-} else {
+}
+else {
     $message .= " with read-write directory.";
 }
 run( [ 'logger', '-p', 'local3.warning', '-t', 'SystemImage', $message ] );

@@ -41,7 +41,7 @@ sub configure_services {
     $xcp->output(0);
     close $tmpfh;
 
-    rename("$tmpfile", "$root/$config_boot")
+    rename( "$tmpfile", "$root/$config_boot" )
       or "Unable to update $root/$config_boot\n";
 }
 
@@ -67,7 +67,7 @@ sub configure_cmdline {
     close($grubfh);
     close($tmpfh);
 
-    rename("$tmpfile", "$root/$grub_cfg")
+    rename( "$tmpfile", "$root/$grub_cfg" )
       or die "Unable to overwrite $root/$grub_cfg\n";
 
     chmod( 0644, "$root/$grub_cfg" );
@@ -96,7 +96,7 @@ while ( $#ARGV >= 0 ) {
     }
 }
 
-configure_services($config_boot) if @services;
+configure_services($config_boot)              if @services;
 configure_cmdline( $grub_cfg, $grub_options ) if $grub_options;
 
 exit 0;

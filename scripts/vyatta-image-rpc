@@ -22,8 +22,7 @@ sub add_image {
     $ENV{VY_ADD_IMG_USER} = $input->{'username'};
     $ENV{VY_ADD_IMG_PASS} = $input->{'password'};
 
-    my $output =
-      qx(/opt/vyatta/sbin/vyatta-install-image -y $location 2>/dev/null);
+    my $output = qx(/opt/vyatta/sbin/vyatta-install-image -y $location 2>/dev/null);
 
     die $output if $? != 0;
 

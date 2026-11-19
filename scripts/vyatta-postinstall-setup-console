@@ -58,10 +58,8 @@ sub configure_console {
 
     my $xcp = new XorpConfigParser();
     $xcp->parse("$root/$config_boot");
-    create_if_not_exists( $xcp,
-        [ 'system', 'console', 'device', $console, 'speed', $speed ] );
-    create_if_not_exists( $xcp,
-        [ 'system', 'console', "serial-boot-console", $console ] );
+    create_if_not_exists( $xcp, [ 'system', 'console', 'device', $console, 'speed', $speed ] );
+    create_if_not_exists( $xcp, [ 'system', 'console', "serial-boot-console", $console ] );
 
     my $TMPL = "/tmp/vyatta_postinstall_setup_console.XXXXXXXX";
     my ( $tmpfh, $tmpfile ) = tempfile( $TMPL, UNLINK => 1 )
