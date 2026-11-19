@@ -36,14 +36,12 @@ sub grub_editenv {
     }
     push( @{$cmd}, $envfile, $editcmd, @vars );
     run3( $cmd, \undef, \$s_out, \$s_err );
-    die(
-        __FILE__,
-        ': Failed command: ',
-        join( q{ }, @{$cmd} ),
-        "\n",
-        $s_out ? "STDOUT:$s_out\n" : q{},
-        $s_err ? "STDERR:$s_err\n" : q{}
-    ) if $? != 0;
+    if ( $? != 0 ) {
+        my $msg = __FILE__ . ': Failed command: ' . join( q{ }, @{$cmd} ) . "\n";
+        $msg .= "STDOUT:$s_out\n" if $s_out;
+        $msg .= "STDERR:$s_err\n" if $s_err;
+        die $msg;    ## no critic (ErrorHandling::RequireCarping) reason: the message ends with a newline, as the script's other errors
+    }
     return $s_out;
 }
 
@@ -70,13 +68,13 @@ sub check_args {
     die __FILE__, ": Invalid argument: must specify exactly one of global, running, or image\n"
       if $target != 1;
     foreach my $arg (@ARGV) {
-        my ( $name, $val ) = split( /=/s, $arg, 2 );
+        my ( $name, $val ) = split( /=/sx, $arg, 2 );
         if ( $action eq 'set' ) {
-            die __FILE__, ": Invalid $action argument $name"
+            die __FILE__, ": Invalid $action argument $name\n"
               if not defined($val);
         }
         elsif ( $action eq 'unset' ) {
-            die __FILE__, ": Invalid $action argument $name" if defined($val);
+            die __FILE__, ": Invalid $action argument $name\n" if defined($val);
         }
     }
     return;

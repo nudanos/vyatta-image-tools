@@ -12,29 +12,25 @@ use warnings;
 use lib "/opt/vyatta/share/perl5/";
 use Getopt::Long;
 use XorpConfigParser;
+use File::Copy qw(move);
 use File::Temp qw(tempfile);
-
-my $config_boot = "/config/config.boot";
-my $grub_cfg    = "/boot/grub/grub.cfg";
-
-my @services;
-my $grub_options;
 
 sub setup_console {
     my ( $file, $console, $unit, $speed ) = @_;
-    system("grub-editenv $file set boot_console=$console");
+    system( 'grub-editenv', $file, 'set', "boot_console=$console" );
     if ( defined $unit ) {
-        system("grub-editenv $file set serial_unit=$unit");
+        system( 'grub-editenv', $file, 'set', "serial_unit=$unit" );
     }
     else {
-        system("grub-editenv $file unset serial_unit");
+        system( 'grub-editenv', $file, 'unset', 'serial_unit' );
     }
     if ( defined $speed ) {
-        system("grub-editenv $file set serial_speed=$speed");
+        system( 'grub-editenv', $file, 'set', "serial_speed=$speed" );
     }
     else {
-        system("grub-editenv $file unset serial_speed");
+        system( 'grub-editenv', $file, 'unset', 'serial_speed' );
     }
+    return;
 }
 
 sub create_if_not_exists {
@@ -43,33 +39,33 @@ sub create_if_not_exists {
     if ( not defined $node ) {
         $xcp->create_node($path);
     }
+    return;
 }
 
 sub configure_console {
-    my ( $root, $config_boot, $console, $speed ) = @_;
-    exit 1 if ( !defined($config_boot) );
+    my ( $root, $boot, $console, $speed ) = @_;
+    exit 1 if ( !defined($boot) );
 
     my $file = "$root/boot/grub/grubenv";
     return setup_console( $file, "tty0" )
       if ( $console eq "tty0" );
 
-    my $unit = $1 if ( $console =~ /ttyS([0-3])/ );
+    my ($unit) = $console =~ /ttyS([0-3])/x;
     setup_console( $file, $console, $unit, $speed );
 
-    my $xcp = new XorpConfigParser();
-    $xcp->parse("$root/$config_boot");
+    my $xcp = XorpConfigParser->new();
+    $xcp->parse("$root/$boot");
     create_if_not_exists( $xcp, [ 'system', 'console', 'device', $console, 'speed', $speed ] );
     create_if_not_exists( $xcp, [ 'system', 'console', "serial-boot-console", $console ] );
 
     my $TMPL = "/tmp/vyatta_postinstall_setup_console.XXXXXXXX";
-    my ( $tmpfh, $tmpfile ) = tempfile( $TMPL, UNLINK => 1 )
-      or die "Can't create temp file: $!";
-    select $tmpfh;
-    $xcp->output(0);
-    close $tmpfh;
+    my ( $tmpfh, $tmpfile ) = tempfile( $TMPL, UNLINK => 1 );
+    $xcp->output_to( $tmpfh, 0 );
+    close $tmpfh or die "Unable to write $tmpfile: $!\n";
 
-    my $ret = system("mv $tmpfile $root/$config_boot");
-    die "Unable to update $root/$config_boot\n" if ( $ret >> 8 );
+    move( $tmpfile, "$root/$boot" )
+      or die "Unable to update $root/$boot\n";
+    return;
 }
 
 sub usage {

@@ -9,44 +9,55 @@ use strict;
 
 use Getopt::Long;
 use File::Basename;
+use IPC::Run3;
 use JSON;
 
 use lib "/opt/vyatta/share/perl5";
 use Vyatta::Live;
 
+my $sbindir = $ENV{vyatta_sbindir} // '/opt/vyatta/sbin';
+
+# The RPC's input, as configd passes it on standard input
+sub rpc_input {
+    my $in = do { local $/ = undef; <> };    ## no critic (InputOutput::ProhibitExplicitStdin) reason: configd's RPC input
+    return decode_json($in);
+}
+
+# the location is an argument of the installer, never shell text: this runs
+# as root with what the RPC was given
 sub add_image {
-    my $in       = do { local $/; <> };
-    my $input    = decode_json($in);
+    my $input    = rpc_input();
     my $location = $input->{'location'};
 
-    $ENV{VY_ADD_IMG_USER} = $input->{'username'};
-    $ENV{VY_ADD_IMG_PASS} = $input->{'password'};
+    local $ENV{VY_ADD_IMG_USER} = $input->{'username'};
+    local $ENV{VY_ADD_IMG_PASS} = $input->{'password'};
 
-    my $output = qx(/opt/vyatta/sbin/vyatta-install-image -y $location 2>/dev/null);
+    my $output = '';
+    run3( [ "$sbindir/vyatta-install-image", '-y', $location ], \undef, \$output, \undef );
 
-    die $output if $? != 0;
+    # the installer's own account of what went wrong is the RPC's error
+    die $output if $? != 0;    ## no critic (ErrorHandling::RequireCarping) reason: the installer's message, not a location in this script
 
     print encode_json( {} );
+    return;
 }
 
 sub delete_image_rpc {
-    my $in    = do { local $/; <> };
-    my $input = decode_json($in);
-    my $name  = $input->{'name'};
+    my $name = rpc_input()->{'name'};
 
     delete_image($name);
 
     print encode_json( {} );
+    return;
 }
 
 sub set_default_boot_image_rpc {
-    my $in    = do { local $/; <> };
-    my $input = decode_json($in);
-    my $name  = $input->{'name'};
+    my $name = rpc_input()->{'name'};
 
     set_default_boot_image($name);
 
     print encode_json( {} );
+    return;
 }
 
 sub get_state {
@@ -69,6 +80,7 @@ sub get_state {
     };
 
     print encode_json($output);
+    return;
 }
 
 sub call_action_by_name {

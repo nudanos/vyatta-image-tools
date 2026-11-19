@@ -172,7 +172,9 @@ elif [[ $COMMAND == "INSTALL" ]]; then
 	# Set up repo
 	TEMP_APT_REPO_DIR=/var/UPSTREAM
 	mkdir -p "${merged}"${TEMP_APT_REPO_DIR}
-	run_command cp "$VYATTA_NEW_PKGS" "${merged}"${TEMP_APT_REPO_DIR}/
+	# a space-separated list of package files (vyatta-hotfix)
+	read -r -a new_pkgs <<< "$VYATTA_NEW_PKGS"
+	run_command cp "${new_pkgs[@]}" "${merged}"${TEMP_APT_REPO_DIR}/
 	pushd "${merged}"${TEMP_APT_REPO_DIR}/ &>/dev/null || exit
 	if ! run_command dpkg-scanpackages ./ 2>/dev/null > ./Packages; then
 		safe_umount

@@ -13,14 +13,39 @@ use warnings;
 
 use Sys::Syslog;
 use File::Basename;
+use IPC::Run3;
 
 use lib "/opt/vyatta/share/perl5/";
 use Vyatta::Configd;
 use Vyatta::Live;
 
+# Each package path is printed and the problem with it, if any; false if
+# any of them has one. A path is passed on in a space-separated list, so it
+# is held to the characters of a package name.
+sub packages_valid {
+    my @pkgs  = @_;
+    my $valid = 1;
+    foreach my $path (@pkgs) {
+        my $file = basename($path);
+        if ( $path !~ m{^[A-Za-z0-9._+/~-]+$}x ) {
+            print "Invalid package name: [$file]\n";
+            $valid = 0;
+        }
+        if ( !-f $path ) {
+            print "Selected file does not exist: $path\n";
+            $valid = 0;
+        }
+        if ( $file !~ m/[.]deb$/x ) {
+            print "Selected file is not a debian package: $path\n";
+            $valid = 0;
+        }
+    }
+    return $valid;
+}
+
 exit 1 unless defined $ARGV[0];
-die "Argument contains unsanitary characters, stopped"
-  if ( $ARGV[0] =~ m|[^-A-Za-z0-9_/.~+]| );
+die "Argument contains unsanitary characters, stopped\n"
+  if ( $ARGV[0] =~ m{[^-A-Za-z0-9_/.~+]}x );
 my $target_image = "$ARGV[0]";
 
 my $client = Vyatta::Configd::Client->new();
@@ -55,28 +80,9 @@ my @pkgs = @ARGV[ 2 .. $#ARGV ];
 if ( scalar @pkgs == 0 ) {
     exit 1;
 }
-my $invalid = 0;
-for ( my $i = 0 ; $i < scalar @pkgs ; $i++ ) {
-    my $path = $pkgs[$i];
-    my $file = basename($path);
-    unless ( $file =~ m/^[A-Za-z0-9\.\-\_\+\/\~]+$/ ) {
-        print "Invalid package name: [$file]\n";
-        $invalid = 1;
-    }
-    unless ( -f $path ) {
-        print "Selected file does not exist: $path\n";
-        $invalid = 1;
-    }
-    unless ( $file =~ m/\.deb$/ ) {
-        print "Selected file is not a debian package: $path\n";
-        $invalid = 1;
-    }
-}
-if ( $invalid == 1 ) {
-    exit 1;
-}
+exit 1 unless packages_valid(@pkgs);
 
-$ENV{'VYATTA_NEW_PKGS'} = join " ", @pkgs;
+local $ENV{'VYATTA_NEW_PKGS'} = join " ", @pkgs;
 if ( scalar @pkgs > 1 ) {
     print "Installing " . scalar @pkgs . " new packages\n";
 }
@@ -88,7 +94,7 @@ print "Packages: $ENV{'VYATTA_NEW_PKGS'}\n";
 
 # Create backup of target image
 syslog( 'info', "Creating clone ($clone) of target image to perform package upgrade on..." );
-system("clone-image.pl --old_name \"$target_image\" --new_name \"$clone\"");
+system( 'clone-image.pl', '--old_name', $target_image, '--new_name', $clone );
 my $ret = $? >> 8;
 if ( $ret != 0 ) {
     syslog( 'err', "Failed to create clone." );
@@ -100,7 +106,9 @@ if ( $ret != 0 ) {
 # Install new packages
 syslog( 'info', "Installing new packages to target image [$target_image]" );
 syslog( 'info', "Packages: $ENV{'VYATTA_NEW_PKGS'}" );
-print `vyatta-squashfs-chroot $clone INSTALL`;
+my $chroot_out = '';
+run3( [ 'vyatta-squashfs-chroot', $clone, 'INSTALL' ], \undef, \$chroot_out );
+print $chroot_out;
 $ret = $? >> 8;
 if ( $ret != 0 ) {
     syslog( 'err', "Failed to install new packages. Removing cloned image ($clone)" );
@@ -113,7 +121,11 @@ else {
     syslog( 'info',
         "Package install successful. Replacing cloned image ($clone) with target ($target_image)" );
     delete_image($target_image);
-    system("rename-image.pl --old_name $clone --new_name $target_image &>/dev/null");
+
+    # quietly, and before reporting success: run by /bin/sh (dash), the
+    # old "&>/dev/null" put the rename in the background instead
+    run3( [ 'rename-image.pl', '--old_name', $clone, '--new_name', $target_image ],
+        \undef, \undef, \undef );
     syslog( 'info', "Successfully installed new packages to target image: [$target_image]." );
     print "Done.\n";
 }
