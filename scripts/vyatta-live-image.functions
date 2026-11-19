@@ -49,7 +49,7 @@ what_is_mounted_on ()
 	return
     fi
 
-    while read DEV MP REST
+    while read -r DEV MP REST
     do 
 	if [[ "${MP} " =~ ^(/usr)?${mountpoint}\  ]]
 	then
@@ -67,7 +67,7 @@ get_live_rootfs_path ()
     read -r -d '' -a ROOTFS_DEV < <(what_is_mounted_on '/run/live/rootfs.*') || true
     if [ ${#ROOTFS_DEV[@]} -gt 1 ] ; then
 	# PANIC!
-	echo "E: Found multiple rootfs devices: ${ROOTFS_DEV[@]}" >&2
+	echo "E: Found multiple rootfs devices: ${ROOTFS_DEV[*]}" >&2
 	exit 1
     fi
 
@@ -84,7 +84,7 @@ get_live_rootfs_path ()
     # in this list
     #
     for ROOT in ${IMAGE%/boot/*} ${IMAGE%/live/*} /live/image ; do
-	if [ -d "${SHUNIT_TMPDIR}${ROOT}" -a -n "$(what_is_mounted_on "${ROOT}")" ] ; then
+	if [ -d "${SHUNIT_TMPDIR}${ROOT}" ] && [ -n "$(what_is_mounted_on "${ROOT}")" ] ; then
 	    echo "${ROOT}"
 	    return
 	fi
@@ -103,7 +103,7 @@ get_image_persistence_path_from_rootfs ()
     ROOTFS_PATH=${2}
     IMAGE_DIR="${ROOTFS_PATH}/boot/${IMAGE_NAME}"
 
-    if [ -z "${IMAGE_NAME}" -o -z "${ROOTFS_PATH}" ] ; then
+    if [ -z "${IMAGE_NAME}" ] || [ -z "${ROOTFS_PATH}" ] ; then
 	return 1
     fi
 
@@ -129,7 +129,7 @@ export -f get_image_persistence_path_from_rootfs
 #
 get_image_upperdir_path_from_rootfs ()
 {
-    local IMAGE_NAME ROOTFS_PATH UPPERDIR_PATH
+    local IMAGE_NAME ROOTFS_PATH
     IMAGE_NAME=${1}
     ROOTFS_PATH=${2}
 
@@ -174,7 +174,7 @@ get_image_version ()
     read -r -d '' -a ROOTFS_DEV < <(what_is_mounted_on '/run/live/rootfs.*') || true
     if [ ${#ROOTFS_DEV[@]} -gt 1 ] ; then
 	# PANIC!
-	echo "E: Found multiple rootfs devices: ${ROOTFS_DEV[@]}" >&2
+	echo "E: Found multiple rootfs devices: ${ROOTFS_DEV[*]}" >&2
 	exit 1
     fi
 

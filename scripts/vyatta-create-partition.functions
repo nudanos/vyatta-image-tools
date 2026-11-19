@@ -29,14 +29,15 @@ figure_out_partition_number ()
 
   # Check using the FS label. Supports loop devices
   for i in $(part_num_list "$drive"); do
+    local label
     if [[ $drive == *"loop"* ]]; then
-      if [ -n "$(echo "$labels" | grep -oh "$(e2label /dev/mapper/"${drive}"p"$i" 2> /dev/null)")" ]; then
-        output+="$i\\|"
-      fi
+      label=$(e2label /dev/mapper/"${drive}"p"$i" 2> /dev/null)
     else
-      if [ -n "$(echo "$labels" | grep -oh "$(e2label /dev/"${drive}""$i" 2> /dev/null)")" ]; then
-        output+="$i\\|"
-      fi
+      label=$(e2label /dev/"${drive}""$i" 2> /dev/null)
+    fi
+    # an unlabelled partition matches nothing
+    if [ -n "$label" ] && grep -q -- "$label" <<< "$labels"; then
+      output+="$i\\|"
     fi
   done
 
@@ -51,14 +52,15 @@ part_num_list () {
    local dev=${1}
    if [[ "$dev" =~ mmcblk || "$dev" =~ nvme ]]; then
      local tmp
-     tmp=$(lsblk /dev/"$dev" --output KNAME | egrep -oh 'p[0-9]+$' | sort -u | sort -n)
+     tmp=$(lsblk /dev/"$dev" --output KNAME | grep -Eoh 'p[0-9]+$' | sort -u | sort -n)
      tmp=${tmp//p}
    else
      local tmp
-     tmp=$(lsblk /dev/"$dev" --output KNAME | egrep -oh '[0-9]+$' | sort -u | sort -n)
+     tmp=$(lsblk /dev/"$dev" --output KNAME | grep -Eoh '[0-9]+$' | sort -u | sort -n)
    fi
+   local list=""
    for i in $tmp; do
-     local list+="$(echo "$i") "
+     list+="$i "
    done
    if [ -n "$list" ]; then
      echo "${list::-1}"
@@ -88,8 +90,7 @@ first_missing_part () {
   local drive=$1
   local increment=1
   local sorted_arr
-  # shellcheck disable=SC2046 # reason: joins the partition numbers onto one line
-  sorted_arr=$( echo $(part_num_list "$drive") | sort -t' ')
+  sorted_arr=$(part_num_list "$drive")
   for i in $sorted_arr; do
     if [ "$i" -eq $increment ]; then
       ((increment++))
@@ -185,18 +186,18 @@ remove_all_partitions_except ()
   done
 
   # How many parts are left?
-  echo "$(total_number_of_partitions "$drive")"
+  total_number_of_partitions "$drive"
 }
 
 find_first_fit() {
   local drive=$1
   local desired_size=$2
   while IFS='' read -r LINE || [[ -n $LINE ]]; do
-    args=( ${LINE//MB} )
+    read -r -a args <<< "${LINE//MB}"
     start=${args[0]}
     size=${args[2]}
     # expr doesn't work for floats, use awk
-    if $(awk "BEGIN{ if ($size >= $desired_size){ exit 0 } exit 1 }"); then
+    if awk "BEGIN{ if ($size >= $desired_size){ exit 0 } exit 1 }"; then
 		awk -f /dev/stdin <<EOF
 BEGIN{
     if ($start < 1) {

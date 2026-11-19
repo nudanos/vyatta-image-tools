@@ -50,8 +50,8 @@ function hugepages_run ()
     local image_name=${2:?Missing argument}
 
     # check for IOMMU and pdpe1gb CPU flag
-    if [ "$(ls /sys/kernel/iommu_groups | wc -l)" -ne 0 -a \
-	 "$(grep -c pdpe1gb /proc/cpuinfo)" -ne 0 ]; then
+    if [ -n "$(find /sys/kernel/iommu_groups -mindepth 1 -maxdepth 1 2>/dev/null | head -n 1)" ] &&
+        grep -q pdpe1gb /proc/cpuinfo; then
 	local pages
 	pages=$(num_1G_hugepages)
 

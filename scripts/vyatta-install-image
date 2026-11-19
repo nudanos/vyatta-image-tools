@@ -96,14 +96,14 @@ if [ $# -gt 1 ] || [ "${VY_ADD_IMG_USER:+X}" != "${VY_ADD_IMG_PASS:+X}" ]; then
 fi
 
 # set default values for important variables
-: ${OPT_CONFIG:=""} # optional vyatta.config
+: "${OPT_CONFIG:=""}" # optional vyatta.config
 : "${OPT_ROOT:="$(get_live_rootfs_path)"}"
-: ${OPT_YES:=""} # the vyatta autoinstaller
-: ${OPT_URL:=${1}} # url to the image to be added
+: "${OPT_YES:=""}" # the vyatta autoinstaller
+: "${OPT_URL:=${1}}" # url to the image to be added
 : "${OPT_URL_USERNAME:=${VY_ADD_IMG_USER}}"
 : "${OPT_URL_PASSWORD:=${VY_ADD_IMG_PASS}}"
-: ${OPT_VYATTA_CONFIG:=""} # Using a non-default vyatta config.boot
-: ${OPT_DEFER_BOOT:="0"} # If set, don't use the new image as the default boot
+: "${OPT_VYATTA_CONFIG:=""}" # Using a non-default vyatta config.boot
+: "${OPT_DEFER_BOOT:="0"}" # If set, don't use the new image as the default boot
 export OPT_DEFER_BOOT
 
 # This points to the running live CD and in case of an installed system we
@@ -172,7 +172,11 @@ fi
 
 # Check if this is an ONIE environment
 unset ONIE_BOOT
-is_onie_boot && export ONIE_BOOT='true' || export ONIE_BOOT='false'
+if is_onie_boot; then
+    export ONIE_BOOT='true'
+else
+    export ONIE_BOOT='false'
+fi
 [ "${ONIE_BOOT-}" = 'true' ] && lecho "Found ONIE environment"
 
 # Download, check and/or mount installation source, If vit_chrooted is set,
@@ -216,7 +220,7 @@ if [[ -n "${OPT_URL}" && -z "${vit_chrooted}" ]] ; then
         unset "$evar"
     done
     export vit_chrooted=true
-    args=( $@ )
+    args=( "$@" )
     becho "Executing installer from downloaded image..."
     (/./${CD_SQUASH_ROOT}/opt/vyatta/sbin/vyatta-install-image "${args[@]}")
     # Recursive exit...

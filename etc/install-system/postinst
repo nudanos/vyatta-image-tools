@@ -39,7 +39,8 @@ fi
 
 ROOT=$1
 
-for i in $(ls /etc/systemd/system/local-fs.target.wants/*mount); do
+for i in /etc/systemd/system/local-fs.target.wants/*mount; do
+    [ -e "$i" ] || continue
     becho "Copying systemd mount file onto new image: $(basename "$i")"
     enable_systemd_mount "$i" "$ROOT"
 done

@@ -20,7 +20,7 @@
 # the INSTALL_LOG env var should be exported by the "caller".
 # it will be used to log messages.
 
-# shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
+# shellcheck disable=SC1091,SC2154 # reason: sourced from the installed system; vyatta_sbindir comes from the caller
 source "${vyatta_sbindir}"/install-get-partition.functions
 
 # the base install drive e.g. sda
@@ -33,9 +33,6 @@ ROOT_PARTITION_TYPE=''
 PARTITION=''
 # default file system type
 ROOT_FSTYPE='ext4'
-# default start of root partition
-ROOT_SIZE=0
-
 write_and_exit () {
     echo "$ROOT_PARTITION_TYPE $ROOT_PARTITION $INSTALL_DRIVE $GRUB_PARTITIONS" >"$OUTFILE"
     becho 'Done!'
@@ -113,11 +110,9 @@ select_disklabel () {
 # check whether there is a disk label / partition table
 check_disklabel () {
     local ldrive=$1
-
-    parted --script /dev/"$ldrive" p >/dev/null 2>&1
-
     # If unable to read disk, it's likely it needs a disklabel
-    if [ "$?" != "0" ]; then
+
+    if ! parted --script /dev/"$ldrive" p >/dev/null 2>&1; then
         lecho "Unable to read disk label."
         return 1
     fi
@@ -139,13 +134,13 @@ select_partition () {
   PARTITION=''
 
   # list only the partitions in /proc/partitions.
-  parts=$(cat /proc/partitions | awk '{ if ($4!="name") { print $4 " "} }' \
-          | egrep "[0-9]" | egrep -v "^loop|^ram|^sr|^fd" | tr -d '\n')
+  parts=$(awk '{ if ($4!="name") { print $4 " "} }' /proc/partitions \
+          | grep -E "[0-9]" | grep -Ev "^loop|^ram|^sr|^fd" | tr -d '\n')
 
   # remove any partitions we have already previously used
   if [ -n "$exclude" ]; then
     for part in $parts; do
-      temp=$(echo "$part" | egrep -v "$exclude")
+      temp=$(echo "$part" | grep -Ev "$exclude")
       parts_temp="$parts_temp $temp"
     done
     parts=$parts_temp
@@ -156,12 +151,12 @@ select_partition () {
   display=''
   myparts=''
   for part in $parts; do
-    rootdev=$(echo "$part" | sed 's/[0-9]//g')
+    rootdev=${part//[0-9]/}
     parttype=$(fdisk -l /dev/"$rootdev" | grep "$part" | grep Linux)
     if [ -n "$parttype" ]; then
       lsize=$(get_drive_size "$part")
-      if [ "$lsize" -a "$lsize" -ge "$minsize" ]; then
-        display="$display $part\t\t$lsize"MB"\n"
+      if [ -n "$lsize" ] && [ "$lsize" -ge "$minsize" ]; then
+        display="$display $part\t\t${lsize}MB\n"
         myparts="$myparts $part"
       fi
     fi
@@ -202,7 +197,7 @@ delete_partitions () {
   # in the first grep below we add the optional [p] in order to
   # accomdate cciss drives
   wait_for_partprobe "/dev/$ldrive"
-  partitions=$(cat /proc/partitions | grep "$ldrive"[p]*[0-9] \
+  partitions=$(grep "${ldrive}[p]*[0-9]" /proc/partitions \
                | awk '{ print $4 }' | sed 's/\(.*\)\([0-9]$\)/\2/g' \
                | grep -v "^$")
   mkdir -p /mnt/tmp
@@ -235,7 +230,7 @@ set_bootable_partition () {
 
 # get drive name from a partition name
 drive_name_from_partition () {
-  echo "$1" | sed 's/[0-9]//g'
+  echo "${1//[0-9]/}"
 }
 
 
@@ -296,8 +291,7 @@ or would you rather partition it manually with parted?
 
 EOF
   while [ -z "$PART_METHOD" ]; do
-    check_disklabel "$ldrive"
-    if [ "$?" != "0" ]; then
+    if ! check_disklabel "$ldrive"; then
         # don't show skip option if drive partition table can't be read
         echo -n "Partition (Auto/Parted) [${VII_PART_METHOD}]: "
         part_method=$(get_response """${VII_PART_METHOD}" "Auto Parted A M P")
@@ -332,6 +326,7 @@ select_install_drive() {
   # Check here if possible RAID setup.
   if [[ -n $VII_VROUT_ARRAY_DISKS ]]; then
       # vRouter array disks have already been defined by external vii.config
+      # shellcheck disable=SC2034 # reason: read by validate_partition_sizes
       VII_VYOS_PART_SIZE=0
       INSTALL_DRIVE="md/md-vRouter"
       return
@@ -344,6 +339,7 @@ select_install_drive() {
           echo -n "RAID type? (0/1/5) [$VII_VROUT_ARRAY_TYPE]: "
           VII_VROUT_ARRAY_TYPE=$(get_response "$VII_VROUT_ARRAY_TYPE" "0 1 5")
           VII_VROUT_ARRAY_DISKS=$(gather_raid_devices "$VII_VROUT_ARRAY_TYPE")
+          # shellcheck disable=SC2034 # reason: read by validate_partition_sizes
           VII_VYOS_PART_SIZE=0
           INSTALL_DRIVE="md/md-vRouter"
           return
@@ -413,7 +409,7 @@ setup_method_manual() {
   # partition is on.
   # TODO: Allow different drives to function as the boot device
   if [ -z "$INSTALL_DRIVE" ]; then
-    INSTALL_DRIVE=$(echo "$ROOT_PARTITION" | sed 's/[0-9]//g')
+    INSTALL_DRIVE=${ROOT_PARTITION//[0-9]/}
   fi
 }
 

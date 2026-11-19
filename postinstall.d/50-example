@@ -27,8 +27,7 @@ function example_configure ()
 
 function example_run ()
 {
-    local root_dir=${1:?Missing argument}
-    local image_name=${2:?Missing argument}
+    : "${1:?Missing argument}" "${2:?Missing argument}" # root directory and image name
     local foo=${VII_POSTINSTALL_VYATTA_EXAMPLE_FOO?Missing foo environment}
 
     becho "The new foo is ${foo}"

@@ -20,7 +20,7 @@ function configure_configure ()
 function configure_run ()
 {
     local root_dir=${1:?Missing argument}
-    local image_name=${2:?Missing argument}
+    : "${2:?Missing argument}" # the image name, not needed here
 
     "$vyatta_sbindir"/vyatta-postinstall-configure --root="$root_dir" \
         ${VII_POSTINSTALL_GRUB_OPTIONS:+--grub-options=${VII_POSTINSTALL_GRUB_OPTIONS}} \

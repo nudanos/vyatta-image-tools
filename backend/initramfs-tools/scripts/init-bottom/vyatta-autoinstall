@@ -30,7 +30,8 @@ copy_autoinstall_file ()
             vyatta-autoinstall=*)
 		FILENAME=$(echo "${_PARAMETER}" | \
 			sed -ne 's/^vyatta-autoinstall=\(file:\)\?//p')
-		if [[ -r ${FILENAME} ]] ; then
+		if [ -r "${FILENAME}" ] ; then
+		    # shellcheck disable=SC2154 # reason: rootmnt is set by initramfs-tools
 		    cp -f "${FILENAME}" "${rootmnt}"
 		fi
 		;;

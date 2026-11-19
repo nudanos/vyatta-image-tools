@@ -7,7 +7,7 @@
 # Copyright (c) 2017 by Brocade Communications Systems, Inc.
 # All rights reserved.
 
-# shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
+# shellcheck disable=SC1091,SC2154 # reason: sourced from the installed system; vyatta_sbindir comes from the caller
 source "${vyatta_sbindir}/vyatta-create-partition.functions"
 # shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
 source "${vyatta_sbindir}/install-get-partition.functions"
@@ -34,15 +34,13 @@ setup_raid () {
         underlying+=( "/dev/$d" )
     done
 
-    run_command mdadm --create --auto=mdp --verbose "$md_dev" --level="$level" \
-        --force --run --raid-devices=${#ldrives[@]} --name="md-$label" "${underlying[@]}"
-    if [ $? -ne 0 ]; then
-    fail_exit "Failed to create RAID array."
+    if ! run_command mdadm --create --auto=mdp --verbose "$md_dev" --level="$level" \
+        --force --run --raid-devices=${#ldrives[@]} --name="md-$label" "${underlying[@]}"; then
+        fail_exit "Failed to create RAID array."
     fi
 
-    run_command parted -s "$md_dev" mklabel 'gpt'
-    if [ $? -ne 0 ]; then
-    fail_exit "Failed to create disk label"
+    if ! run_command parted -s "$md_dev" mklabel 'gpt'; then
+        fail_exit "Failed to create disk label"
     fi
 
     echo "md/md-$label"
@@ -75,7 +73,7 @@ create_partition() {
         fail_exit "Unable to find a sector big enough for the $part_label partition"
     fi
     local end
-    end="$(expr "$(printf %.0f "$(_to_MB "$offset")")" + "$part_size")"
+    end=$(( $(printf %.0f "$(_to_MB "$offset")") + part_size ))
     # _to_MB returns float, which expr does not like
    
     local new_drive

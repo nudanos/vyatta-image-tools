@@ -27,9 +27,6 @@ INST_ROOT=/mnt/inst_root
 WRITE_ROOT=/mnt/wroot
 
 # mount point for the readonly squashfs mount.
-# this is only used for union install.
-READ_ROOT=/mnt/squashfs
-
 # mount point for the ISO image.
 # this is only used when installing with an ISO image file
 # (instead of from a live CD boot).
@@ -182,7 +179,7 @@ get_response () {
       myresponse=$ldefault
   else
       # get the response from the user
-      read myresponse
+      read -r myresponse
       if [[ $VYATTA_PROCESS_CLIENT == "yes" ]]; then
 	      echo >&2
       fi
@@ -220,7 +217,7 @@ get_response_raw () {
       myresponse=$ldefault
   else
       # get the response from the user
-      read myresponse
+      read -r myresponse
       if [[ $VYATTA_PROCESS_CLIENT == "yes" ]]; then
           echo >&2
       elif [[ $option == "nodef" ]]; then
@@ -295,6 +292,7 @@ filter_used_devices ()
   # @raid_array gets set in gather_raid_devices...
   local array_disks=()
   read -r -a array_disks <<< "$VII_VROUT_ARRAY_DISKS $VII_VIRT_ARRAY_DISKS $VII_LOG_ARRAY_DISKS"
+  # shellcheck disable=SC2154 # reason: raid_array is gather_raid_devices' list, seen by its select_drive calls
   for rm in "${raid_array[@]}" "${array_disks[@]}" "$INSTALL_DRIVE"; do
       [ -n "$rm" ] || continue
       mapfile -t drives < <(_drives_without "$rm" "${drives[@]}")
@@ -304,9 +302,10 @@ filter_used_devices ()
 }
 
 get_free_devices () {
-  local drives=( $(lsblk_exclude_floppy --nodeps --output TYPE,KNAME,MOUNTPOINT | \
+  local drives=()
+  read -r -d '' -a drives < <(lsblk_exclude_floppy --nodeps --output TYPE,KNAME,MOUNTPOINT | \
 	grep -v "/run/live/medium" | awk '{print $1, $2}' | \
-	sed -ne 's/^disk //p') )
+	sed -ne 's/^disk //p') || true
   read -r -d '' -a drives < <(filter_used_devices "${drives[@]}") || true
   echo "${drives[@]}"
 }
@@ -421,7 +420,7 @@ _dialog_enter_password ()
 
     if [[ $plaintext == "" ]]; then
         # raw: useradd writes it to /etc/shadow as given
-        echo "$(SECRET="$pwd1" encrypt_shadow_passwd)"
+        SECRET="$pwd1" encrypt_shadow_passwd
     else
         echo "$pwd1"
     fi
@@ -591,6 +590,7 @@ is_union_install ()
 # This function will run a command and in case of a failure log the command
 # line and the stderr via becho to the console and the logfile.
 #
+# shellcheck disable=SC2031 # reason: the variables come back through typeset -p and eval
 run_command ()
 {
     local cmd_std cmd_err cmd_ret
@@ -953,13 +953,13 @@ install_grub_master ()
 install_grub () {
     local opt_arr=( "$@" )
     local grub_root=${opt_arr[0]}            # mountpoint
-    local grub_inst_drv=${opt_arr[2]}        # drive name (e.g. sda)
+    local grub_drv=${opt_arr[2]}             # drive name (e.g. sda)
     local grub_inst_drvs=( "${opt_arr[@]:3}" ) # drive or partition names
 
     install -m755 -d "$grub_root"/boot/grub
 
     if [ -d /sys/firmware/efi ] ; then
-	install_grub_efi "$grub_root" "$grub_inst_drv" "${grub_inst_drvs[@]}"
+	install_grub_efi "$grub_root" "$grub_drv" "${grub_inst_drvs[@]}"
 	install_grub_efi_bootmgr_entry "${grub_inst_drvs[@]}"
     else
 	install_grub_bios "$grub_root" "${grub_inst_drvs[@]}"
@@ -1148,7 +1148,7 @@ umount_filesystems_for_post_install ()
     local image_name=${2}
 
     local ROOTFS_DEV
-    ROOTFS_DEV=$(what_is_mounted_on "${ROOT}" | egrep -v 'overlay|overlayfs')
+    ROOTFS_DEV=$(what_is_mounted_on "${ROOT}" | grep -Ev 'overlay|overlayfs')
     local mnt_dir="/run/live"
     local LIVE_ROOTFS="${ROOT}${mnt_dir}/persistence/${ROOTFS_DEV##*/}"
 
@@ -1818,7 +1818,7 @@ check_install_source ()
 }
 
 
-MKTEMPDIR_ROOT_DIR="$(mktemp -d -t $(basename "$0").XXXXXXXX)" || exit 1
+MKTEMPDIR_ROOT_DIR="$(mktemp -d -t "$(basename "$0")".XXXXXXXX)" || exit 1
 export MKTEMPDIR_ROOT_DIR
 
 #
@@ -2075,7 +2075,7 @@ parse_vii_config ()
 	fi
 	lecho "$key='$value'"
 	declare -g "$key"="$value"
-	export "$key"
+	export "${key?}"
     done < <(sed -e 's/=/ /' "${config_file}")
 }
 

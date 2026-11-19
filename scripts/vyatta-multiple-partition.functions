@@ -18,12 +18,11 @@
 #
 _to_name () {
   local part_arr=( "$@" )
-  local index=0
   for i in $(seq 0 ${#part_arr[@]}); do
-    if [ "$(expr "$i" % 3)" == 0 ]; then
+    if [ $(( i % 3 )) -eq 0 ]; then
       continue
     fi
-    unset part_arr["$i"]
+    unset 'part_arr[i]'
   done
   echo "${part_arr[@]}"
 }
@@ -34,13 +33,12 @@ _to_name () {
 _to_size () {
   local part_arr=( "$@" )
   part_arr=( "${part_arr[@]:1}" )
-  local index=0
 
   for i in $(seq 0 ${#part_arr[@]}); do
-    if [ "$(expr "$i" % 3)" == 0 ]; then
+    if [ $(( i % 3 )) -eq 0 ]; then
       continue
     fi
-    unset part_arr["$i"]
+    unset 'part_arr[i]'
   done
   echo "${part_arr[@]}"
 }
@@ -51,13 +49,12 @@ _to_size () {
 _to_mount () {
   local part_arr=( "$@" )
   part_arr=( "${part_arr[@]:2}" )
-  local index=0
 
   for i in $(seq 0 ${#part_arr[@]}); do
-    if [ "$(expr "$i" % 3)" == 0 ]; then
+    if [ $(( i % 3 )) -eq 0 ]; then
       continue
     fi
-    unset part_arr["$i"]
+    unset 'part_arr[i]'
   done
   echo "${part_arr[@]}"
 }
@@ -67,7 +64,7 @@ _to_mount () {
 #
 _num_of () {
   part_arr=( "$@" )
-  echo "$(expr ${#part_arr[@]} / 3)"
+  echo $(( ${#part_arr[@]} / 3 ))
 }
 
 
@@ -78,7 +75,7 @@ _num_of () {
 _rm_part () {
   local opt_arr=( "$@" )
   local size
-  size=$(expr ${#opt_arr[@]} - 1)
+  size=$(( ${#opt_arr[@]} - 1 ))
 
   # Already empty
   if [ "$size" -lt 2 ]; then
@@ -86,7 +83,7 @@ _rm_part () {
   fi
 
   for i in $(seq "$size" -1 $(( size - 2 ))); do
-    unset opt_arr["$i"]
+    unset 'opt_arr[i]'
   done
   echo "${opt_arr[@]}"
 }
@@ -110,8 +107,8 @@ print_partition_estimates () {
   echo -e "\n"
 
   for i in $(seq 0 3 ${#part_arr[@]}); do
-    part_num=$(expr "$part_num" + 1)
-    echo "Partition $part_num: ${part_arr[$i]} ${part_arr[$(expr "$i" + 1)]}MB on ${part_arr[$(expr "$i" + 2)]}"
+    part_num=$(( part_num + 1 ))
+    echo "Partition $part_num: ${part_arr[i]} ${part_arr[i + 1]}MB on ${part_arr[i + 2]}"
   done
 
   # Space
@@ -145,7 +142,6 @@ enable_systemd_mount () {
   local file=$1
   local root=$2
   local dest="$root/etc/systemd/system/local-fs.target.wants/"
-  local path=''
 
   mkdir -p "$dest"
   cp --remove-destination "$file" "$dest"
@@ -164,7 +160,7 @@ gather_raid_devices () {
         "We found the following suitable ones:"
     while [[ ${#raid_array[@]} -lt 2 || $response == Y* ]]; do
         select_drive "Add drive to RAID array?" 'RAID_DRIVE'
-        raid_array=( ${raid_array[@]} "$RAID_DRIVE" )
+        raid_array+=( "$RAID_DRIVE" )
         echo -n "Current array includes drives: "
         echo "${raid_array[@]}"
 
@@ -172,7 +168,7 @@ gather_raid_devices () {
             [01])
                 if [[ ${#raid_array[@]} -lt 2 ]]; then
                     echo "We need at least two disks, please add another one."
-                    reponse="Yes"
+                    response="Yes"
                     continue
                 fi
                 ;;
@@ -199,7 +195,7 @@ gather_raid_devices () {
 size_of_raid () {
     local raid=${1:?Missing raid device}
     local size=0
-    while read START END SIZE EXTRA; do
+    while read -r _ _ SIZE _; do
         local tmp=${SIZE//MB}
         tmp=$(echo "$tmp" | cut -d'.' -f1) # trim decimal
         size=$(( size + tmp ))
@@ -233,7 +229,8 @@ _convert_raid_index () {
 }
 
 destroy_md_devices () {
-    for dev in $(ls /dev/md/* 2>/dev/null); do
+    for dev in /dev/md/*; do
+        [ -e "$dev" ] || continue
         run_command mdadm --stop "$dev" 2>&1
     done
 }

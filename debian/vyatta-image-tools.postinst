@@ -2,8 +2,6 @@
 
 set -e
 
-pkg=vyatta-image-tools
-
 case "${1}" in
     install|upgrade|configure)
 

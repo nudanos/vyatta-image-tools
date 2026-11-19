@@ -9,6 +9,7 @@ set -e
 : "${vyatta_exec_prefix:=$vyatta_prefix}"
 : "${vyatta_sbindir:=${vyatta_exec_prefix}/sbin}"
 : "${vyatta_yangdir:=/usr/share/configd/yang}"
+: "${vyatta_datadir:=${vyatta_prefix}/share}"
 # shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
 source "${vyatta_sbindir}"/vyatta-install-image.functions
 
@@ -27,7 +28,7 @@ remove_opmode_install_template ()
 
     # delete install template
     if [ -d "$install_tmplt" ]; then
-        lecho "$(rm -vfr "$install_tmplt"/)"
+        lecho "$(rm -vfr "${install_tmplt:?}"/)"
     fi
 }
 
@@ -54,7 +55,7 @@ remove_opmode_install_yang ()
 function misc_run ()
 {
     local root_dir=${1:?Missing argument}
-    local image_name=${2:?Missing argument}
+    : "${2:?Missing argument}" # the image name, not needed here
 
     # remove operational mode install template
     # as it has no use outside of livecd

@@ -7,7 +7,7 @@
 # Copyright (c) 2014-2017 by Brocade Communications Systems, Inc.
 # All rights reserved.
 
-# shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
+# shellcheck disable=SC1091,SC2154 # reason: sourced from the installed system; vyatta_sbindir comes from the caller
 source "${vyatta_sbindir}/vyatta-multiple-partition.functions"
 # shellcheck disable=SC1091 # reason: sourced from the installed system, not this tree
 source "${vyatta_sbindir}/vyatta-create-partition"
@@ -133,8 +133,7 @@ setup_disk_label () {
         lecho "$output"
         fail_exit "Failed to create disk label"
     fi
-    parted --script /dev/"$disk" p >/dev/null 2>&1
-    if [ "$?" != "0" ]; then
+    if ! parted --script /dev/"$disk" p >/dev/null 2>&1; then
       fail_exit "Unable to read disk label."
     fi
     echo "OK"
@@ -236,6 +235,7 @@ write_to_disk () {
             becho "Setting up RAID partitions for vRouter..."
             for d in $VII_VROUT_ARRAY_DISKS; do
                 new_drive=$(first_missing_part "$d")
+                # shellcheck disable=SC2154 # reason: part_table is exported by vyatta-install-image.functions
                 remaining_disk_space=$(( $(get_drive_size "$d") - VII_ESP_PART_SIZE - VII_BOOT_PART_SIZE - VII_ONIEBOOT_SIZE - part_table ))
                 becho "Writing partition to disk: " \
                     "[$d] [vRouter-raid] [$remaining_disk_space]"
@@ -295,7 +295,7 @@ write_to_disk () {
     create_partition "$INSTALL_DRIVE" 'LIBVIRT' "$VII_VIRT_PART_SIZE" "$ROOT_FSTYPE"
   else
       required=$(cat /opt/vyatta/etc/vii.config* 2>/dev/null | grep VII_VIRT_PART_SIZE | cut -d'=' -f2)
-      if [[ $requried -gt 0 ]]; then
+      if [[ $required -gt 0 ]]; then
           fail_exit "You need to setup a libvirt partition"
       fi
   fi

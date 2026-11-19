@@ -9,6 +9,7 @@
 #
 
 : "${vyatta_env:=/etc/default/vyatta}"
+# shellcheck disable=SC1090 # reason: /etc/default/vyatta on the installed system
 source "$vyatta_env"
 
 migrate_liveboot4_install ()
@@ -44,6 +45,7 @@ migrate_liveboot4_install ()
     fi
 }
 
+# shellcheck disable=SC2154 # reason: vyatta_sbindir comes from /etc/default/vyatta
 ROOTFS_DIR=$("${vyatta_sbindir}/vyatta-live-image" get_live_rootfs_path)
 IMAGE_NAME=$("${vyatta_sbindir}/vyatta-live-image" get_image_version)
 IMAGE_DIR="${ROOTFS_DIR}/boot/${IMAGE_NAME}"

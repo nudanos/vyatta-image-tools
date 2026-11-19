@@ -14,7 +14,7 @@ grub_file='/boot/grub/grub.cfg'
 _get_console () {
     local image_name=$2
     local boot_cmd
-    boot_cmd=$(cat "$1" 2> /dev/null | grep -A1 "Vyatta image $image_name (Serial" | tail -n 1)
+    boot_cmd=$(grep -A1 "Vyatta image $image_name (Serial" "$1" 2> /dev/null | tail -n 1)
     if [[ -z $boot_cmd ]]; then
         # Can't find a valid grub entry with that image name, must be a new image.
         # No Need to continue the rest of the script.

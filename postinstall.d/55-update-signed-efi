@@ -17,10 +17,11 @@ function update_efi_binaries ()
 {
     local INSTALL_ROOT_DIR=${1:?Missing argument}
 
-    if [ -d /sys/firmware/efi -a \
-            -d  /boot/efi/EFI/debian -a \
-            -d "${INSTALL_ROOT_DIR}"/usr/lib/shim -a \
-            -d "${INSTALL_ROOT_DIR}"/usr/lib/grub ] ; then
+    if [ -d /sys/firmware/efi ] && [ -d /boot/efi/EFI/debian ] &&
+
+            [ -d "${INSTALL_ROOT_DIR}"/usr/lib/shim ] &&
+
+            [ -d "${INSTALL_ROOT_DIR}"/usr/lib/grub ] ; then
         lecho "Updating signed shim EFI binaries..."
         cd  "${INSTALL_ROOT_DIR}"/usr/lib/shim
         for BIN in *.signed; do
@@ -28,7 +29,7 @@ function update_efi_binaries ()
         done
 
         lecho "Updating signed grub EFI binaries..."
-        while read SIG; do
+        while read -r SIG; do
            run_command cp -a "${INSTALL_ROOT_DIR}"/usr/lib/grub/"$SIG" /boot/efi/EFI/debian/
         done < <(find "${INSTALL_ROOT_DIR}"/usr/lib/grub -name '*.signed' -printf '%P\n')
 

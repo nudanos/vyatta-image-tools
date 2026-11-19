@@ -32,7 +32,7 @@ safe_umount ()
 	unset merged &>/dev/null
 	unset lower_dir &>/dev/null
 }
-trap "{ safe_umount; }" EXIT HUP KILL
+trap '{ safe_umount; }' EXIT HUP
 
 apt_command ()
 {
@@ -96,7 +96,7 @@ fi
 
 RUNNING_IMAGE=$(get_running_image)
 
-if [[ $RUNNING_IMAGE != $TARGET_IMAGE ]]; then
+if [[ $RUNNING_IMAGE != "$TARGET_IMAGE" ]]; then
 	MOUNTED=1
 	#
 	# Setup Overlay
@@ -174,8 +174,7 @@ elif [[ $COMMAND == "INSTALL" ]]; then
 	mkdir -p "${merged}"${TEMP_APT_REPO_DIR}
 	run_command cp "$VYATTA_NEW_PKGS" "${merged}"${TEMP_APT_REPO_DIR}/
 	pushd "${merged}"${TEMP_APT_REPO_DIR}/ &>/dev/null || exit
-	run_command dpkg-scanpackages ./ 2>/dev/null > ./Packages
-	if [[ $? != 0 ]]; then
+	if ! run_command dpkg-scanpackages ./ 2>/dev/null > ./Packages; then
 		safe_umount
 		logger error "$0: Failed to scan packages"
 		fail_exit "Failed to scan packages"
@@ -196,20 +195,17 @@ EOF
 
 	# Run apt-get upgrade
 	APT_ARGS="--allow-downgrades --allow-remove-essential --allow-change-held-packages"
-	apt_command "apt-get update"
-	if [[ $? != 0 ]]; then
+	if ! apt_command "apt-get update"; then
 		safe_umount
 		logger error "$0: Apt-get update failed"
 		fail_exit "Apt-get update failed"
 	fi
-	apt_command "apt-get $APT_ARGS --yes --dry-run upgrade"
-	if [[ $? != 0 ]]; then
+	if ! apt_command "apt-get $APT_ARGS --yes --dry-run upgrade"; then
 		safe_umount
 		logger error "$0: Apt-get dry run failed"
 		fail_exit "Apt-get dry run failed"
 	fi
-	apt_command "apt-get $APT_ARGS --yes dist-upgrade"
-	if [[ $? != 0 ]]; then
+	if ! apt_command "apt-get $APT_ARGS --yes dist-upgrade"; then
 		safe_umount
 		logger error "$0: Apt-get upgrade failed"
 		fail_exit "Apt-get upgrade failed"

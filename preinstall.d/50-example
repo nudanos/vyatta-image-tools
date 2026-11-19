@@ -27,7 +27,7 @@ function example_configure ()
 
 function example_run ()
 {
-    local cd_root=${1:?Missing argument}
+    : "${1:?Missing argument}" # the CD root
     local foo=${VII_PREINSTALL_VYATTA_EXAMPLE_FOO?Missing foo environment}
 
     becho "${FUNCNAME[0]}" "The new foo is ${foo}"
