@@ -7,6 +7,7 @@ TESTS = postinstall.vyatta-misc.sh
 TESTS += vyatta-install-image.functions.sh
 TESTS += vyatta-live-image.sh
 TESTS += vyatta_live.pl
+TESTS += update_grub.pl
 TESTS += preinstall.virtualization.sh
 TESTS += vyatta-create-partition.functions.sh
 TESTS += vyatta-multiple-partition.functions.sh
