@@ -1,3 +1,18 @@
+vyatta-image-tools (5.56) trixie; urgency=medium
+
+  * Code-quality lint fixes (distro docs/porting.md), with tests for what
+    they touch. Bugs found and fixed on the way, see the git log:
+    - Operator input reached shells: show log image, show/copy/delete
+      file, rename and clone system image, and the add-image RPC (root).
+    - A missing grub template wrote an empty grub.cfg.
+    - RAID installs passed disk lists as one word; unattended install did
+      not work under dash; hotfix renamed in the background.
+    - Image names with "+" hid the running image; rename and clone took
+      any name, "/" included.
+  * Depend on vyatta-config-migrate (>= 0.18) for XorpConfigParser.
+
+ -- NuDanOS Maintainers <jon@fernandez.tech>  Thu, 19 Nov 2026 05:07:40 +0000
+
 vyatta-image-tools (5.55) trixie; urgency=medium
 
   * install-image: give useradd the administrator's crypt hash unescaped; it
