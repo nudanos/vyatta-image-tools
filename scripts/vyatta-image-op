@@ -15,10 +15,13 @@ use strict;
 use warnings;
 use Getopt::Long;
 use File::Basename;
+use IPC::Run3;
 use Number::Bytes::Human qw(format_bytes);
 
 use lib "/opt/vyatta/share/perl5/";
 use Vyatta::Configd;
+
+my $sbindir = $ENV{vyatta_sbindir} // '/opt/vyatta/sbin';
 
 sub show_storage {
     my $client = Vyatta::Configd::Client->new();
@@ -36,6 +39,7 @@ sub show_storage {
             format_bytes( $image->{'storage'}->{'total'} )
         );
     }
+    return;
 }
 
 sub print_images {
@@ -66,18 +70,21 @@ sub print_images {
         $index = $index + 1;
     }
     print "\n";
+    return;
 }
 
 sub show_images {
     my $client = Vyatta::Configd::Client->new();
     my $tree   = $client->tree_get_full_hash("system-image");
     print_images( $tree, 0 );
+    return;
 }
 
 sub show_versions {
     my $client = Vyatta::Configd::Client->new();
     my $tree   = $client->tree_get_full_hash("system-image");
     print_images( $tree, 1 );
+    return;
 }
 
 sub list_images_cmd {
@@ -87,15 +94,16 @@ sub list_images_cmd {
     foreach my $image ( @{$images} ) {
         printf( "%s\n", $image->{'name'} );
     }
+    return;
 }
 
 sub prompt_user_for_image {
     my ( $prompt_msg, $error_msg, $num_entries ) = @_;
     print "$prompt_msg";
-    my $resp = <STDIN>;
+    my $resp = <STDIN>;    ## no critic (InputOutput::ProhibitExplicitStdin) reason: the answer is typed at the terminal, never a file argument
     if ( defined($resp) ) {
         chomp($resp);
-        if (  !( $resp =~ /^\d+$/ )
+        if (  !( $resp =~ /^\d+$/x )
             || ( $resp < 1 )
             || ( $resp > $num_entries ) )
         {
@@ -114,6 +122,7 @@ sub check_image_exists {
     my ($image) =
       grep { $_->{'name'} eq $image_name } @{ $tree->{'system-image'}->{'installed-images'} };
     die "Image \"$image_name\" not found\n" if !defined($image);
+    return;
 }
 
 sub delete_image_name {
@@ -130,7 +139,7 @@ sub delete_image_name {
     }
     print "Are you sure you want to delete the\n\"$image_name\" image? ";
     print '(Yes/No) [No]: ';
-    my $resp = <STDIN>;
+    my $resp = <STDIN>;    ## no critic (InputOutput::ProhibitExplicitStdin) reason: the answer is typed at the terminal, never a file argument
     if ( !defined($resp) ) {
         $resp = 'no';
     }
@@ -145,6 +154,7 @@ sub delete_image_name {
     $client->call_rpc_hash( "vyatta-image-v1", "delete-image", { 'name' => $image_name } );
 
     print "Done\n";
+    return;
 }
 
 sub get_image_name {
@@ -159,6 +169,7 @@ sub delete_image_cmd {
     my $tree         = $client->tree_get_full_hash("system-image");
 
     delete_image_name( $client, $tree, $image_name );
+    return;
 }
 
 sub delete_image_prompt {
@@ -169,10 +180,11 @@ sub delete_image_prompt {
 
     print_images( $tree, 0, "The following image(s) can be deleted:" );
     my $resp = prompt_user_for_image( $prompt_msg, $error_msg,
-        scalar( $tree->{'system-image'}->{'installed-images'} ) );
+        scalar( @{ $tree->{'system-image'}->{'installed-images'} } ) );
 
     my $image_name = get_image_name( $tree, $resp );
     delete_image_name( $client, $tree, $image_name );
+    return;
 }
 
 sub select_image_name {
@@ -188,12 +200,13 @@ sub select_image_name {
     $client->call_rpc_hash( "vyatta-image-v1", "set-default-boot-image",
         { 'name' => $image_name } );
 
-    print <<EOF;
+    print <<"EOF";
 Default boot image has been set to "$image_name".
 You need to reboot the system to start the new default image.
 
 EOF
 
+    return;
 }
 
 sub select_image_cmd {
@@ -201,6 +214,7 @@ sub select_image_cmd {
     my $client       = Vyatta::Configd::Client->new();
     my $tree         = $client->tree_get_full_hash("system-image");
     select_image_name( $client, $tree, $image_name );
+    return;
 }
 
 sub select_image_prompt {
@@ -211,16 +225,17 @@ sub select_image_prompt {
 
     print_images($tree);
     my $resp = prompt_user_for_image( $prompt_msg, $error_msg,
-        scalar( $tree->{'system-image'}->{'installed-images'} ) );
+        scalar( @{ $tree->{'system-image'}->{'installed-images'} } ) );
 
     my $image_name = get_image_name( $tree, $resp );
     select_image_name( $client, $tree, $image_name );
+    return;
 }
 
 sub list_md_cmd {
     if ( opendir( my $dh, '/dev/md/' ) ) {
         while ( readdir $dh ) {
-            if (m/^md-([a-zA-Z]+)$/) {
+            if (m/^md-([a-zA-Z]+)$/x) {
                 print "$1\n";
             }
         }
@@ -229,85 +244,100 @@ sub list_md_cmd {
     else {
         print "No RAID devices found";
     }
+    return;
 }
 
 sub list_md_disks_cmd {
     my ($md_name) = $ARGV[0];
 
     my $md_dev = readlink "/dev/md/md-$md_name";
+    die "$md_name: No such RAID device\n" unless defined $md_dev;
     $md_dev = basename($md_dev);
-    open my $fh, '<', '/proc/mdstat' or die;
-    while ( my $line = <$fh> ) {
-        if ( $line =~ m/$md_dev/ ) {
-            my (@disks) = $line =~ m/([\S]+)\[[0-9]\]/g;
+    open my $fh, '<', '/proc/mdstat' or die "Cannot read /proc/mdstat: $!\n";
+    my @lines = <$fh>;
+    close $fh;
+    foreach my $line (@lines) {
+        if ( $line =~ m/\Q$md_dev\E/x ) {
+            my (@disks) = $line =~ m/([\S]+)\[[0-9]\]/gx;
             if (@disks) {
                 print join( "\n", @disks ), "\n";
             }
         }
     }
+    return;
 }
+
+# The persistence directories of $image (one per line from
+# vyatta-live-image), or die if there is no such image
+sub image_paths {
+    my ($image) = @_;
+    my $out = '';
+    run3( [ "$sbindir/vyatta-live-image", 'get_image_persistence_path', $image ], \undef, \$out );
+    die "$image: No such image\n" if $? != 0;
+    return grep { $_ ne '' } split /\n/x, $out;
+}
+
+# Run @$cmd with each of @paths appended by $with (a sub of the path giving
+# the extra words); print what they wrote if they all succeeded
+sub run_for_each_path {
+    my ( $with,   @paths ) = @_;
+    my ( $output, $ok )    = ( '', 1 );
+    foreach my $path (@paths) {
+        my $out = '';
+        run3( [ $with->($path) ], \undef, \$out );
+        $ok = 0 if $? != 0;
+        $output .= $out;
+    }
+    print $output if $ok;
+    return;
+}
+
+sub log_dir { my ($path) = @_; return "$path/var/log/" . ( $ENV{'LOGNAME'} // '' ); }
 
 sub show_log_cmd {
     my ($image) = $ARGV[0];
-    my $output = qx(/opt/vyatta/sbin/vyatta-live-image get_image_persistence_path $image);
-    die "$image: No such image" if $? != 0;
-
-    $output = qx(echo "$output" | xargs -I'{}' -r journalctl -a --no-pager --root='{}');
-    print "$output" if $? == 0;
+    run_for_each_path( sub { return ( 'journalctl', '-a', '--no-pager', "--root=$_[0]" ) },
+        image_paths($image) );
+    return;
 }
 
 sub show_log_dir_cmd {
     my ($image) = $ARGV[0];
-    my $output = qx(/opt/vyatta/sbin/vyatta-live-image get_image_persistence_path $image);
-    die "$image: No such image" if $? != 0;
-
-    $output = qx(echo "$output" | xargs -I'{}' -r ls '{}'/var/log/$ENV{'LOGNAME'});
-    print "$output" if $? == 0;
+    run_for_each_path( sub { return ( 'ls', log_dir( $_[0] ) ) }, image_paths($image) );
+    return;
 }
 
 sub show_log_file_cmd {
     my ( $image, $file ) = @ARGV;
-    my $output = qx(/opt/vyatta/sbin/vyatta-live-image get_image_persistence_path $image);
-    die "$image: No such image" if $? != 0;
-
-    $output =
-qx(echo "$output" | xargs -I'{}' -r vyatta-show-log-file "$file" '{}'/var/log/$ENV{'LOGNAME'});
-    print "$output" if $? == 0;
+    run_for_each_path( sub { return ( 'vyatta-show-log-file', $file, log_dir( $_[0] ) ) },
+        image_paths($image) );
+    return;
 }
 
 sub show_log_tail_cmd {
     my ( $image, $len ) = @ARGV;
-    my $output = qx(/opt/vyatta/sbin/vyatta-live-image get_image_persistence_path $image);
-    die "$image: No such image" if $? != 0;
-
-    $output = qx(echo "$output" | xargs -I'{}' -r journalctl -a --no-pager -n "$len" --root='{}')
-      if defined $len;
-
-    $output = qx(echo "$output" | xargs -I'{}' -r journalctl -a --no-pager -n --root='{}')
-      if !defined $len;
-
-    print "$output" if $? == 0;
+    my @lines = defined $len ? ( '-n', $len ) : ('-n');
+    run_for_each_path( sub { return ( 'journalctl', '-a', '--no-pager', @lines, "--root=$_[0]" ) },
+        image_paths($image) );
+    return;
 }
 
 sub list_log_files_cmd {
     my ($image) = $ARGV[0];
-    my $output = qx(/opt/vyatta/sbin/vyatta-live-image get_image_persistence_path $image);
-    die "$image: No such image" if $? != 0;
-
-    $output = qx(echo "$output" | xargs -I'{}' -r ls '{}'/var/log/$ENV{'LOGNAME'});
-
-    print "$output" if $? == 0;
+    run_for_each_path( sub { return ( 'ls', log_dir( $_[0] ) ) }, image_paths($image) );
+    return;
 }
 
 sub autoinstall_cmd {
     my ( $image, $type ) = @ARGV;
 
     if ( $type eq '.' ) {
-        system("vyatta-install-image -y '$image'");
+        system( 'vyatta-install-image', '-y', $image );
     }
     elsif ( $type eq '..' ) {
-        system("vyatta-install-image -y '$image' && reboot");
+        system( 'vyatta-install-image', '-y', $image ) == 0 and system('reboot');
     }
+    return;
 }
 
 sub call_action_by_name {
