@@ -1,3 +1,10 @@
+vyatta-image-tools (5.57) trixie; urgency=medium
+
+  * Write the generated boot mount units into systemd's generator directory.
+    Installed images need these mounts for GRUB configuration updates.
+
+ -- Jon Fernandez <jon@fernandez.tech>  Thu, 26 Nov 2026 17:00:00 +0000
+
 vyatta-image-tools (5.56) trixie; urgency=medium
 
   * Code-quality lint fixes (distro docs/porting.md), with tests for what

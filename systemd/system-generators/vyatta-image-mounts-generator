@@ -11,9 +11,9 @@
 # file will find it in the expected location.
 #
 
-DESTDIR="${1:-/tmp}"
+set -eu
+DESTDIR="${1:?systemd generator output directory required}"
 
-systemd_dir="/lib/systemd/system"
 config_loaded_target_wants="$DESTDIR/config-loaded.target.wants"
 
 LIVE_ROOTFS_PATH=$(/opt/vyatta/sbin/vyatta-live-image get_live_rootfs_path)
@@ -21,7 +21,7 @@ IMAGE_PATH=$(/opt/vyatta/sbin/vyatta-live-image get_image_path)
 
 
 setup_boot_systemd() {
-    cat <<EOF > $systemd_dir/boot.mount
+    cat <<EOF > "$DESTDIR/boot.mount"
 [Unit]
 Before=local-fs.target
 ConditionKernelCommandLine=vyatta-union
@@ -33,12 +33,12 @@ Type=none
 Options=bind
 EOF
 
-ln -sf "$systemd_dir/boot.mount" "$config_loaded_target_wants"
+    ln -sf ../boot.mount "$config_loaded_target_wants/boot.mount"
 }
 
 
 setup_bootgrub_systemd() {
-    cat <<EOF > $systemd_dir/boot-grub.mount
+    cat <<EOF > "$DESTDIR/boot-grub.mount"
 [Unit]
 Before=local-fs.target
 RequiresMountsFor=/boot
@@ -51,12 +51,12 @@ Type=none
 Options=bind
 EOF
 
-ln -sf "$systemd_dir/boot-grub.mount" "$config_loaded_target_wants"
+    ln -sf ../boot-grub.mount "$config_loaded_target_wants/boot-grub.mount"
 }
 
 setup_devicecache_systemd() {
-filename=$(systemd-escape -p --suffix=mount "/device-cache")
-    cat <<EOF > $systemd_dir/"$filename"
+    filename='device\x2dcache.mount'
+    cat <<EOF > "$DESTDIR/$filename"
 [Unit]
 Before=local-fs.target
 RequiresMountsFor=/boot
@@ -69,7 +69,7 @@ Type=none
 Options=bind
 EOF
 
-ln -sf "$systemd_dir/$filename" "$config_loaded_target_wants"
+    ln -sf "../$filename" "$config_loaded_target_wants/$filename"
 }
 
 
