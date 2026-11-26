@@ -55,7 +55,7 @@ EOF
 }
 
 setup_devicecache_systemd() {
-    filename=$(systemd-escape -p --suffix=mount "/device-cache")
+    filename='device\x2dcache.mount'
     cat <<EOF > "$DESTDIR/$filename"
 [Unit]
 Before=local-fs.target
