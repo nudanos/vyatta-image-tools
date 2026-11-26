@@ -17,3 +17,4 @@ TESTS += vyatta-create-partition.functions.sh
 TESTS += vyatta-multiple-partition.functions.sh
 TESTS += vyatta-raid.sh
 TESTS += autoinstall-dash.sh
+TESTS += image-mounts-generator.sh
