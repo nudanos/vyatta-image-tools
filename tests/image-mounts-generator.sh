@@ -23,7 +23,8 @@ sh "$work/generator" "$work/generated"
 
 for unit in boot.mount boot-grub.mount device\\x2dcache.mount; do
     test -f "$work/generated/$unit"
-    test "$work/generated/config-loaded.target.wants/$unit" -ef "$work/generated/$unit"
+    target=$(readlink "$work/generated/config-loaded.target.wants/$unit")
+    test "$target" = "../$unit"
 done
 grep -Fx 'What=/run/live/persistence/vda2/boot/test-image' "$work/generated/boot.mount"
 grep -Fx 'What=/run/live/persistence/vda2/boot/grub' "$work/generated/boot-grub.mount"
